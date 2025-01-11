@@ -1,10 +1,10 @@
-package App::Cpan;
+package App::Cpan::Upgraded;
 use Test::More qw(no_plan);
 
 BEGIN {
 	local $^W = 0;
 
-	our $class  = 'App::Cpan';
+	our $class  = 'App::Cpan::Upgraded';
 	our $method = '_expand_filename';
 
 	use_ok( $class );

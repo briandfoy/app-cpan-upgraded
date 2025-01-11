@@ -5,7 +5,7 @@ BEGIN {  *CORE::GLOBAL::exit = sub { 23 } };
 BEGIN {
 	local $^W = 0;
 
-	our $class  = 'App::Cpan';
+	our $class  = 'App::Cpan::Upgraded';
 	our $method = '_process_options';
 
 	use_ok( $class );

@@ -1,4 +1,4 @@
-package App::Cpan;
+package App::Cpan::Upgraded;
 use strict;
 use warnings;
 

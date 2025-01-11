@@ -3,7 +3,7 @@
 use Test::More;
 END { done_testing() }
 
-my $class  = 'App::Cpan';
+my $class  = 'App::Cpan::Upgraded';
 my $method = '_process_options';
 
 use_ok( $class );

@@ -6,7 +6,7 @@ use Test::More tests => 60;
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 my $CPAN = 'CPAN::Shell';
 
-my $class = 'App::Cpan';
+my $class = 'App::Cpan::Upgraded';
 use_ok( $class );
 can_ok( $class, $_ ) for (
 	'_hook_into_CPANpm_report',
