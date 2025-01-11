@@ -1,17 +1,11 @@
-use Test::More tests => 1;
+use Test::More;
 
 my $file = 'blib/script/cpan';
 
-print "bail out! Script file is missing!" unless -e $file;
+BAIL_OUT "Script file is missing!" unless -e $file;
 
 my $output = `$^X -Ilib -c $file 2>&1`;
+like( $output, qr/syntax OK$/, 'script compiles' )
+	or BAIL_OUT "Script file <$file> does not compile!";
 
-print "bail out! Script file does not compile!: The author must be a "
-	. idiot() . "."
-	unless like( $output, qr/syntax OK$/, 'script compiles' );
-
-sub idiot {
-	my @names = qw(moron idiot buffoon jerk dummy);
-
-	$names[ int rand( $#names + 1 ) ];
-	}
+done_testing();
