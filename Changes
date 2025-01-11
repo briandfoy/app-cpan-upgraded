@@ -1,0 +1,21 @@
+Revision history for Perl module App::Cpan::Version
+
+1.681 2025-01-11T10:51:10Z
+	* first version of a forked version of App::Cpan
+	See https://github.com/andk/cpanpm/issues/187
+	* Fixes RT #107353 says that we need to ignore SIGWINCH
+	(https://github.com/andk/cpanpm/pull/160,
+	https://rt.cpan.org/Ticket/Display.html?id=107353)
+	* Fixes "CPAN_OPTS ends upon the wrong side of the args"
+	(https://github.com/andk/cpanpm/pull/168,
+	https://github.com/andk/cpanpm/issues/131)
+	* Fixes "use correct key to hash in downloaded log message"
+	(https://github.com/andk/cpanpm/pull/169,
+	https://github.com/andk/cpanpm/issues/167)
+	* Fixes "don't include HTTP status 300 when looking for 2xx"
+	(https://github.com/andk/cpanpm/pull/170,
+	https://github.com/andk/cpanpm/issues/166)
+	* Fixes "squash numeric warning in cpan -O"
+	(https://github.com/andk/cpanpm/pull/171,
+	https://github.com/andk/cpanpm/issues/161,
+	https://github.com/andk/cpanpm/issues/165)
