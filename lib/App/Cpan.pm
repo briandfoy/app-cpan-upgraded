@@ -1,4 +1,4 @@
-package App::Cpan;
+package App::Cpan::Upgraded;
 
 use strict;
 use warnings;
@@ -8,14 +8,9 @@ use if $] < 5.008 => 'IO::Scalar';
 
 $VERSION = '1.681';
 
-# This is a signal that the updated cpan looks for to ensure it
-# has the updated module (this module) and not the distributed
-# version from https://github.com/andk/cpanpm.
-$UPGRADED  = 0;
-
 =head1 NAME
 
-App::Cpan - (upgraded) easily interact with CPAN from the command line
+App::Cpan::Upgraded - easily interact with CPAN from the command line
 
 =head1 SYNOPSIS
 

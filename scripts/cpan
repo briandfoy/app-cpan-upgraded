@@ -4,35 +4,23 @@ BEGIN { pop @INC if $INC[-1] eq '.' }
 use strict;
 use vars qw($VERSION);
 
-use App::Cpan;
+use App::Cpan::Upgraded;
 use CPAN::Version;
 my $minver = '1.681';
-if ( CPAN::Version->vlt($App::Cpan::VERSION, $minver) ) {
-    warn "WARNING: your version of App::Cpan is $App::Cpan::VERSION while we would expect at least $minver";
-}
-unless ( $App::Cpan::UPGRADED ) {
-	die <<"HERE";
-This version of cpan(1) requires the updated version of App::Cpan
-from https://github.com/briandfoy/app-cpan
-
-This found App::Cpan at $INC{'App/Cpan.pm'}.
-
-If you have installed the updated version, ensure that its path is
-in \@INC. If you installed the updated version with local::lib, that's
-probably ~/perl5/lib.
-HERE
+if ( CPAN::Version->vlt($App::Cpan::Upgraded::VERSION, $minver) ) {
+    warn "WARNING: your version of App::Cpan::Upgraded is $App::Cpan::Upgraded::VERSION while we would expect at least $minver";
 }
 
 $VERSION = '1.681';
 
-my $rc = App::Cpan->run( @ARGV );
+my $rc = App::Cpan::Upgraded->run( @ARGV );
 
 # will this work under Strawberry Perl?
 exit( $rc || 0 );
 
 =head1 NAME
 
-cpan - easily interact with CPAN from the command line
+cpan - (upgraded) easily interact with CPAN from the command line
 
 =head1 SYNOPSIS
 
@@ -332,7 +320,7 @@ comes directly from CPAN.pm.
 
 This code is in Github in the CPAN.pm repository:
 
-	https://github.com/andk/cpanpm
+	https://github.com/briandfoy/app-cpan
 
 The source used to be tracked separately in another GitHub repo,
 but the canonical source is now in the above repo.
