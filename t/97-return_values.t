@@ -1,34 +1,6 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-BEGIN {
-    unshift @INC, './lib', './t';
-
-    require local_utils;
-    local_utils::cleanup_dot_cpan();
-    local_utils::prepare_dot_cpan();
-    local_utils::read_myconfig();
-    require CPAN::MyConfig;
-    require CPAN;
-    CPAN::HandleConfig->load;
-    $CPAN::Config->{load_module_verbosity} = q[none];
-    my $exit_message;
-    if ($CPAN::META->has_inst("CPAN::Meta::Requirements")){
-        # print "# CPAN::Meta::Requirements loadable\n";
-    } else {
-        $exit_message = "CPAN::Meta::Requirements not installed";
-    }
-    if ($exit_message) {
-        $|=1;
-        print "1..0 # SKIP $exit_message\n";
-        eval "require POSIX; 1" and POSIX::_exit(0);
-        warn "Error while trying to load POSIX: $@";
-        exit(0);
-    }
-
-
-}
-END{ local_utils::cleanup_dot_cpan(); }
 
 $|++;
 
