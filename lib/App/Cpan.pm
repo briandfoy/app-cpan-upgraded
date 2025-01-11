@@ -6,7 +6,7 @@ use vars qw($VERSION);
 
 use if $] < 5.008 => 'IO::Scalar';
 
-$VERSION = '1.678';
+$VERSION = '1.679';
 
 =head1 NAME
 
@@ -363,7 +363,7 @@ sub GOOD_EXIT () { 0 }
     w =>  [ \&_turn_on_warnings,  NO_ARGS, GOOD_EXIT, 'Turning on warnings'          ],
 
     # options that do their one thing
-    g =>  [ \&_download,             ARGS, GOOD_EXIT, 'Download the latest distro'        ],
+    g =>  [ \&_download_command,     ARGS, GOOD_EXIT, 'Download the latest distro'        ],
     G =>  [ \&_gitify,               ARGS, GOOD_EXIT, 'Down and gitify the latest distro' ],
 
     C =>  [ \&_show_Changes,         ARGS, GOOD_EXIT, 'Showing Changes file'         ],
@@ -1165,35 +1165,56 @@ sub _lock_lobotomy # -F
     return HEY_IT_WORKED;
     }
 
-sub _download
-    {
+sub _download {
     my $args = shift;
 
-    local $CPAN::DEBUG = 1;
-
-    my %paths;
-
+    my %results;
     foreach my $arg ( @$args ) {
-        $logger->info( "Checking $arg" );
+        $logger->info( "Trying to download [$arg]" );
 
-        my $module = _expand_module( $arg ) or next;
-        my $path = $module->cpan_file;
+        my $module = _expand_module( $arg );
+        unless( defined $module ) {
+            $results{$arg} = { path => $arg, success => 0 };
+            next;
+            }
 
-        $logger->debug( "Inst file would be $path\n" );
-
-        $paths{$module} = _get_file( _make_path( $path ) );
-
-        $logger->info( "Downloaded [$arg] to [$paths{$arg}]" );
+        $results{$arg} = _get_file( _make_path( $module ) );
+        $logger->info( "Downloaded [$arg] to [$results{$arg}{store_path}]" );
         }
 
-    return \%paths;
+    my $errors = grep { ! $results{$_}{success} } keys %results;
+
+    return \%results;
     }
 
-sub _make_path { join "/", qw(authors id), $_[0] }
+sub _download_command {
+    my $results = _download(shift);
+    return ITS_NOT_MY_FAULT if grep { ! $results->{$_}{success} } keys %$results;
+    return HEY_IT_WORKED;
+    }
+
+sub _make_path {
+    my $arg = shift;
+
+    my $path = join "/", qw(authors id), do {
+           if( eval {$arg->isa('CPAN::Distribution')} ) { $arg->normalize }
+        elsif( eval {$arg->isa('CPAN::Module')}       ) { $arg->cpan_file }
+        else { undef }
+        };
+
+    $logger->debug( "CPAN path for [$arg] is [$path]" );
+
+    return $path;
+    }
 
 sub _get_file
     {
     my $path = shift;
+
+    # handle this case here to make it easier a level above. The form
+    # of the returned data structure is mostly contained in this
+    # subroutine.
+    return { path => undef, success => 0 } unless defined $path;
 
     my $loaded = _safe_load_module("LWP::Simple");
     croak "You need LWP::Simple to use features that fetch files from CPAN\n"
@@ -1203,16 +1224,21 @@ sub _get_file
     my $store_path = catfile( cwd(), $file );
     $logger->debug( "Store path is $store_path" );
 
+    my $status_code;
+    my $success = 0;
     foreach my $site ( @{ $CPAN::Config->{urllist} } )
         {
         my $fetch_path = join "/", $site, $path;
         $logger->debug( "Trying $fetch_path" );
-        my $status_code = LWP::Simple::getstore( $fetch_path, $store_path );
-        last if( 200 <= $status_code and $status_code <= 300 );
+        $status_code = LWP::Simple::getstore( $fetch_path, $store_path );
+        if( 200 <= $status_code and $status_code < 300 ) {
+            $success = 1;
+            last;
+            }
         $logger->warn( "Could not get [$fetch_path]: Status code $status_code" );
         }
 
-    return $store_path;
+    return { path => $path, store_path => $store_path, status_code => $status_code, success => $success };
     }
 
 sub _gitify
