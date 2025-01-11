@@ -17,6 +17,7 @@ BEGIN {
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Test with no options
 {
+delete local $ENV{CPAN_OPTS}; # andk/cpanpm#189
 local @ARGV = ();
 
 is( $class->$method(), 23, "No arguments calls shell branch" );
