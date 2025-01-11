@@ -2,7 +2,7 @@ package App::Cpan;
 
 use strict;
 use warnings;
-use vars qw($VERSION $FORKED);
+use vars qw($VERSION $UPGRADED);
 
 use if $] < 5.008 => 'IO::Scalar';
 
