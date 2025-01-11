@@ -15,7 +15,7 @@ $UPGRADED  = 0;
 
 =head1 NAME
 
-App::Cpan (upgraded) - easily interact with CPAN from the command line
+App::Cpan - (upgraded) easily interact with CPAN from the command line
 
 =head1 SYNOPSIS
 
