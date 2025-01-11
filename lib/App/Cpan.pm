@@ -1368,7 +1368,11 @@ sub _show_out_of_date
     {
     my $modules = _get_all_namespaces();
 
+<<<<<<< HEAD
     printf "%-40s  %6s  %6s\n", "Module Name", "Local", "CPAN";
+=======
+    printf "%-50s  %8s  %8s\n", "Module Name", "Local", "CPAN";
+>>>>>>> briandfoy/gh-161-version-warnings-cpan-dash-O
     print "-" x 73, "\n";
 
     foreach my $module ( @$modules )
@@ -1376,9 +1380,15 @@ sub _show_out_of_date
         next unless $module = _expand_module($module);
         next unless $module->inst_file;
         next if $module->uptodate;
+<<<<<<< HEAD
         printf "%-40s  %.4f  %.4f\n",
             $module->id,
             $module->inst_version ? $module->inst_version : '',
+=======
+        printf "%-50s  %-8s  %-8s\n",
+            $module->id,
+            defined $module->inst_version ? $module->inst_version : 'undef',
+>>>>>>> briandfoy/gh-161-version-warnings-cpan-dash-O
             $module->cpan_version;
         }
 
