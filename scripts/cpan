@@ -6,11 +6,24 @@ use vars qw($VERSION);
 
 use App::Cpan;
 use CPAN::Version;
-my $minver = '1.64';
+my $minver = '1.681';
 if ( CPAN::Version->vlt($App::Cpan::VERSION, $minver) ) {
     warn "WARNING: your version of App::Cpan is $App::Cpan::VERSION while we would expect at least $minver";
 }
-$VERSION = '1.64';
+unless ( $App::Cpan::UPGRADED ) {
+	die <<"HERE";
+This version of cpan(1) requires the updated version of App::Cpan
+from https://github.com/briandfoy/app-cpan
+
+This found App::Cpan at $INC{'App/Cpan.pm'}.
+
+If you have installed the updated version, ensure that its path is
+in \@INC. If you installed the updated version with local::lib, that's
+probably ~/perl5/lib.
+HERE
+}
+
+$VERSION = '1.681';
 
 my $rc = App::Cpan->run( @ARGV );
 

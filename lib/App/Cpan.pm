@@ -2,15 +2,20 @@ package App::Cpan;
 
 use strict;
 use warnings;
-use vars qw($VERSION);
+use vars qw($VERSION $FORKED);
 
 use if $] < 5.008 => 'IO::Scalar';
 
 $VERSION = '1.681';
 
+# This is a signal that the updated cpan looks for to ensure it
+# has the updated module (this module) and not the distributed
+# version from https://github.com/andk/cpanpm.
+$UPGRADED  = 0;
+
 =head1 NAME
 
-App::Cpan - easily interact with CPAN from the command line
+App::Cpan (upgraded) - easily interact with CPAN from the command line
 
 =head1 SYNOPSIS
 
@@ -37,6 +42,11 @@ App::Cpan - easily interact with CPAN from the command line
     cpan [-ahpruvACDLOPX]
 
 =head1 DESCRIPTION
+
+This is an upgraded version of C<cpan> that you can use until its
+changes make it into the main CPAN.pm repository. See
+L<https://github.com/andk/cpanpm/issues/187> or the README for
+this version: L<https://github.com/briandfoy/app-cpan>.
 
 This script provides a command interface (not a shell) to CPAN. At the
 moment it uses CPAN.pm to do the work, but it is not a one-shot command
