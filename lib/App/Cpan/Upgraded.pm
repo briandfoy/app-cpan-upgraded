@@ -6,7 +6,7 @@ use vars qw($VERSION $UPGRADED);
 
 use if $] < 5.008 => 'IO::Scalar';
 
-$VERSION = '1.681';
+$VERSION = '1.682';
 
 =head1 NAME
 
@@ -436,7 +436,7 @@ sub _process_setup_options
         $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
         delete $options->{j};
         }
-    elsif ( ! $options->{h} ) { # h "ignores all of the other options and arguments"
+    elsif ( grep { exists $options->{$_} } keys %CPAN_METHODS ) { # these are options that need CPAN config
         # this is what CPAN.pm would do otherwise
         local $CPAN::Be_Silent = 1;
         CPAN::HandleConfig->load(
