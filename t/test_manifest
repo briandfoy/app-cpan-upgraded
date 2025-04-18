@@ -1,0 +1,9 @@
+97-compile.t
+97-cpanpm_output_hook.t
+97-expand_filenames.t
+97-install_hack.t
+97-mock.t
+97-process_options.t
+97-process_setup_options.t
+97-return_values.t
+97-run.t
