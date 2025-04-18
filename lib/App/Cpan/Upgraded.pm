@@ -406,8 +406,7 @@ sub GOOD_EXIT () { 0 }
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # finally, do some argument processing
 
-sub _stupid_interface_hack_for_non_rtfmers
-    {
+sub _stupid_interface_hack_for_non_rtfmers {
     no warnings 'uninitialized';
     shift @ARGV if( $ARGV[0] eq 'install' and @ARGV > 1 )
     }
@@ -419,20 +418,16 @@ sub _process_options {
 
     # if no arguments, just drop into the shell
     if( 0 == @ARGV ) { CPAN::shell(); exit 0 }
-    elsif (Getopt::Std::getopts(
-          join( '', @option_order ), \%options ))
-        {
+    elsif (Getopt::Std::getopts( join( '', @option_order ), \%options )) {
          \%options;
         }
     else { exit 1 }
     }
 
-sub _process_setup_options
-    {
+sub _process_setup_options {
     my( $class, $options ) = @_;
 
-    if( $options->{j} )
-        {
+    if( $options->{j} ) {
         $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
         delete $options->{j};
         }
@@ -447,18 +442,15 @@ sub _process_setup_options
 
     $class->_turn_off_testing if $options->{T};
 
-    foreach my $o ( qw(F I w P M) )
-        {
+    foreach my $o ( qw(F I w P M) ) {
         next unless exists $options->{$o};
         $Method_table{$o}[ $Method_table_index{code} ]->( $options->{$o} );
         delete $options->{$o};
         }
 
-    if( $options->{o} )
-        {
+    if( $options->{o} ) {
         my @pairs = map { [ split /=/, $_, 2 ] } split /,/, $options->{o};
-        foreach my $pair ( @pairs )
-            {
+        foreach my $pair ( @pairs ) {
             my( $setting, $value ) = @$pair;
             $CPAN::Config->{$setting} = $value;
         #   $logger->debug( "Setting [$setting] to [$value]" );
@@ -499,8 +491,7 @@ failure. See the section on EXIT CODES for details on the values.
 
 my $logger;
 
-sub run
-    {
+sub run {
     my( $class, @args ) = @_;
     local @ARGV = @args;
     my $return_value = HEY_IT_WORKED; # assume that things will work
@@ -521,16 +512,14 @@ sub run
 
     $class->_setup_environment( $options );
 
-    OPTION: foreach my $option ( @option_order )
-        {
+    OPTION: foreach my $option ( @option_order ) {
         next unless $options->{$option};
 
         my( $sub, $takes_args, $description ) =
             map { $Method_table{$option}[ $Method_table_index{$_} ] }
             qw( code takes_args description );
 
-        unless( ref $sub eq ref sub {} )
-            {
+        unless( ref $sub eq ref sub {} ) {
             $return_value = THE_PROGRAMMERS_AN_IDIOT;
             last OPTION;
             }
@@ -580,12 +569,10 @@ sub _safe_load_module {
     eval "require $name; 1";
 }
 
-sub _init_logger
-    {
+sub _init_logger {
     my $log4perl_loaded = _safe_load_module("Log::Log4perl");
 
-    unless( $log4perl_loaded )
-        {
+    unless( $log4perl_loaded ) {
         print STDOUT "Loading internal logger. Log::Log4perl recommended for better logging\n";
         $logger = Local::Null::Logger->new;
         return $logger;
@@ -605,8 +592,7 @@ HERE
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-sub _default
-    {
+sub _default {
     my( $args, $options ) = @_;
 
     my $switch = '';
@@ -645,8 +631,7 @@ sub _default
 
     $options->{x} or _disable_guessers();
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         # check the argument and perhaps capture typos
         my $module = _expand_module( $arg ) or do {
             $logger->error( "Skipping $arg because I couldn't find a matching namespace." );
@@ -680,8 +665,7 @@ so I can find out what happened.
 BEGIN {
 my $scalar = '';
 
-sub _hook_into_CPANpm_report
-    {
+sub _hook_into_CPANpm_report {
     no warnings 'redefine';
 
     *CPAN::Shell::myprint = sub {
@@ -722,8 +706,7 @@ my @skip_lines = (
     qr|^\s+i\s+/|,    # the i /Foo::Whatever/ line when it doesn't know
     );
 
-sub _get_cpanpm_last_line
-    {
+sub _get_cpanpm_last_line {
     my $fh;
 
     if( $] < 5.008 ) {
@@ -739,10 +722,8 @@ sub _get_cpanpm_last_line
     # examine the line before it and go through all of the same
     # regexes. I could do something fancy, but this works.
     REGEXES: {
-    foreach my $regex ( @skip_lines )
-        {
-        if( $lines[-1] =~ m/$regex/ )
-            {
+    foreach my $regex ( @skip_lines ) {
+        if( $lines[-1] =~ m/$regex/ ) {
             pop @lines;
             redo REGEXES; # we have to go through all of them for every line!
             }
@@ -760,8 +741,7 @@ my $epic_fail_words = join '|',
     qw( Error stop(?:ping)? problems force not unsupported
         fail(?:ed)? Cannot\s+install );
 
-sub _cpanpm_output_indicates_failure
-    {
+sub _cpanpm_output_indicates_failure {
     my $last_line = _get_cpanpm_last_line();
 
     my $result = $last_line =~ /\b(?:$epic_fail_words)\b/i;
@@ -771,16 +751,14 @@ sub _cpanpm_output_indicates_failure
     }
 }
 
-sub _cpanpm_output_indicates_success
-    {
+sub _cpanpm_output_indicates_success {
     my $last_line = _get_cpanpm_last_line();
 
     my $result = $last_line =~ /\b(?:\s+-- OK|PASS)\b/;
     $result || ();
     }
 
-sub _cpanpm_output_is_vague
-    {
+sub _cpanpm_output_is_vague {
     return FALSE if
         _cpanpm_output_indicates_failure() ||
         _cpanpm_output_indicates_success();
@@ -801,29 +779,27 @@ sub _turn_off_testing {
     }
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-sub _print_help
-    {
+sub _print_help {
     $logger->info( "Use perldoc to read the documentation" );
     my $HAVE_PERLDOC = eval { require Pod::Perldoc; 1; };
     if ($HAVE_PERLDOC) {
         system qq{"$^X" -e "require Pod::Perldoc; Pod::Perldoc->run()" $0};
         exit;
-    } else {
+    	}
+    else {
         warn "Please install Pod::Perldoc, maybe try 'cpan -i Pod::Perldoc'\n";
         return HEY_IT_WORKED;
-    }
+		}
     }
 
-sub _print_version # -v
-    {
+sub _print_version { # -v
     $logger->info(
         "$0 script version $VERSION, CPAN.pm version " . CPAN->VERSION );
 
     return HEY_IT_WORKED;
     }
 
-sub _print_details # -V
-    {
+sub _print_details { # -V
     _print_version();
 
     _check_install_dirs();
@@ -863,8 +839,7 @@ HERE
     return HEY_IT_WORKED;
     }
 
-sub _check_install_dirs
-    {
+sub _check_install_dirs {
     my $makepl_arg   = $CPAN::Config->{makepl_arg};
     my $mbuildpl_arg = $CPAN::Config->{mbuildpl_arg};
 
@@ -903,8 +878,7 @@ sub _check_install_dirs
 
     }
 
-sub _split_paths
-    {
+sub _split_paths {
     [ map { _expand_filename( $_ ) } split /$Config{path_sep}/, $_[0] || '' ];
     }
 
@@ -915,8 +889,7 @@ Stolen from File::Path::Expand
 
 =cut
 
-sub _expand_filename
-    {
+sub _expand_filename {
     my( $path ) = @_;
     no warnings 'uninitialized';
     $logger->debug( "Expanding path $path\n" );
@@ -926,16 +899,14 @@ sub _expand_filename
     return $path;
     }
 
-sub _home_of
-    {
+sub _home_of {
     require User::pwent;
     my( $user ) = @_;
     my $ent = User::pwent::getpw($user) or return;
     return $ent->dir;
     }
 
-sub _get_default_inc
-    {
+sub _get_default_inc {
     require Config;
 
     [ @Config::Config{ _vars() }, '.' ];
@@ -1004,8 +975,7 @@ sub _find_good_mirrors {
         ];
     }
 
-sub _print_inc_dir_report
-    {
+sub _print_inc_dir_report {
     my( $dir ) = shift;
 
     my $writeable = -w $dir ? '+' : '!!! (not writeable)';
@@ -1013,8 +983,7 @@ sub _print_inc_dir_report
     return -w $dir;
     }
 
-sub _print_ping_report
-    {
+sub _print_ping_report {
     my( $mirror ) = @_;
 
     my $rtt = eval { _get_ping_report( $mirror ) };
@@ -1025,8 +994,7 @@ sub _print_ping_report
         );
     }
 
-sub _get_ping_report
-    {
+sub _get_ping_report {
     require URI;
     my( $mirror ) = @_;
     my( $url ) = ref $mirror ? $mirror : URI->new( $mirror ); #XXX
@@ -1054,8 +1022,7 @@ sub _get_ping_report
     $alive ? $rtt : undef;
     }
 
-sub _load_local_lib # -I
-    {
+sub _load_local_lib { # -I
     $logger->debug( "Loading local::lib" );
 
     my $rc = _safe_load_module("local::lib");
@@ -1068,8 +1035,7 @@ sub _load_local_lib # -I
     return HEY_IT_WORKED;
     }
 
-sub _use_these_mirrors # -M
-    {
+sub _use_these_mirrors { # -M
     $logger->debug( "Setting per session mirrors" );
     unless( $_[0] ) {
         $logger->logdie( "The -M switch requires a comma-separated list of mirrors" );
@@ -1078,11 +1044,9 @@ sub _use_these_mirrors # -M
     $CPAN::Config->{urllist} = [ split /,/, $_[0] ];
 
     $logger->debug( "Mirrors are @{$CPAN::Config->{urllist}}" );
-
     }
 
-sub _create_autobundle
-    {
+sub _create_autobundle {
     $logger->info(
         "Creating autobundle in $CPAN::Config->{cpan_home}/Bundle" );
 
@@ -1091,8 +1055,7 @@ sub _create_autobundle
     return HEY_IT_WORKED;
     }
 
-sub _recompile
-    {
+sub _recompile {
     $logger->info( "Recompiling dynamically-loaded extensions" );
 
     CPAN::Shell->recompile;
@@ -1100,8 +1063,7 @@ sub _recompile
     return HEY_IT_WORKED;
     }
 
-sub _upgrade
-    {
+sub _upgrade {
     $logger->info( "Upgrading all modules" );
 
     CPAN::Shell->upgrade();
@@ -1109,8 +1071,7 @@ sub _upgrade
     return HEY_IT_WORKED;
     }
 
-sub _shell
-    {
+sub _shell {
     $logger->info( "Dropping into shell" );
 
     CPAN::shell();
@@ -1118,8 +1079,7 @@ sub _shell
     return HEY_IT_WORKED;
     }
 
-sub _load_config # -j
-    {
+sub _load_config { # -j
     my $argument = shift;
 
     my $file = file_name_is_absolute( $argument ) ? $argument : rel2abs( $argument );
@@ -1142,8 +1102,7 @@ sub _load_config # -j
     return HEY_IT_WORKED;
     }
 
-sub _dump_config # -J
-    {
+sub _dump_config { # -J
     my $args = shift;
     require Data::Dumper;
 
@@ -1160,8 +1119,7 @@ sub _dump_config # -J
     return HEY_IT_WORKED;
     }
 
-sub _lock_lobotomy # -F
-    {
+sub _lock_lobotomy { # -F
     no warnings 'redefine';
 
     *CPAN::_flock    = sub { 1 };
@@ -1212,8 +1170,7 @@ sub _make_path {
     return $path;
     }
 
-sub _get_file
-    {
+sub _get_file {
     my $path = shift;
 
     # handle this case here to make it easier a level above. The form
@@ -1231,8 +1188,7 @@ sub _get_file
 
     my $status_code;
     my $success = 0;
-    foreach my $site ( @{ $CPAN::Config->{urllist} } )
-        {
+    foreach my $site ( @{ $CPAN::Config->{urllist} } ) {
         my $fetch_path = join "/", $site, $path;
         $logger->debug( "Trying $fetch_path" );
         $status_code = LWP::Simple::getstore( $fetch_path, $store_path );
@@ -1246,8 +1202,7 @@ sub _get_file
     return { path => $path, store_path => $store_path, status_code => $status_code, success => $success };
     }
 
-sub _gitify
-    {
+sub _gitify {
     my $args = shift;
 
     my $loaded = _safe_load_module("Archive::Extract");
@@ -1256,8 +1211,7 @@ sub _gitify
 
     my $starting_dir = cwd();
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         $logger->info( "Checking $arg" );
         my $store_paths = _download( [ $arg ] );
         $logger->debug( "gitify Store path is $store_paths->{$arg}" );
@@ -1283,12 +1237,10 @@ sub _gitify
     return HEY_IT_WORKED;
     }
 
-sub _show_Changes
-    {
+sub _show_Changes {
     my $args = shift;
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         $logger->info( "Checking $arg\n" );
 
         my $module = _expand_module( $arg ) or next;
@@ -1310,8 +1262,7 @@ sub _show_Changes
     return HEY_IT_WORKED;
     }
 
-sub _get_changes_file
-    {
+sub _get_changes_file {
     croak "Reading Changes files requires LWP::Simple and URI\n"
         unless _safe_load_module("LWP::Simple") && _safe_load_module("URI");
 
@@ -1333,16 +1284,13 @@ sub _get_changes_file
     return HEY_IT_WORKED;
     }
 
-sub _show_Author
-    {
+sub _show_Author {
     my $args = shift;
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         my $module = _expand_module( $arg ) or next;
 
-        unless( $module )
-            {
+        unless( $module ) {
             $logger->info( "Didn't find a $arg module, so no author!" );
             next;
             }
@@ -1358,12 +1306,10 @@ sub _show_Author
     return HEY_IT_WORKED;
     }
 
-sub _show_Details
-    {
+sub _show_Details {
     my $args = shift;
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         my $module = _expand_module( $arg ) or next;
         my $author = CPAN::Shell->expand( "Author", $module->userid );
 
@@ -1380,7 +1326,6 @@ sub _show_Details
             $author->fullname . " (" . $module->userid . ")",
             $author->email;
         print "\n\n";
-
         }
 
     return HEY_IT_WORKED;
@@ -1388,22 +1333,19 @@ sub _show_Details
 
 BEGIN {
 my $modules;
-sub _get_all_namespaces
-    {
+sub _get_all_namespaces {
     return $modules if $modules;
     $modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
     }
 }
 
-sub _show_out_of_date
-    {
+sub _show_out_of_date {
     my $modules = _get_all_namespaces();
 
     printf "%-50s  %8s  %8s\n", "Module Name", "Local", "CPAN";
     print "-" x 73, "\n";
 
-    foreach my $module ( @$modules )
-        {
+    foreach my $module ( @$modules ) {
         next unless $module = _expand_module($module);
         next unless $module->inst_file;
         next if $module->uptodate;
@@ -1416,8 +1358,7 @@ sub _show_out_of_date
     return HEY_IT_WORKED;
     }
 
-sub _show_author_mods
-    {
+sub _show_author_mods {
     my $args = shift;
 
     my %hash = map { lc $_, 1 } @$args;
@@ -1432,23 +1373,19 @@ sub _show_author_mods
     return HEY_IT_WORKED;
     }
 
-sub _list_all_mods # -l
-    {
+sub _list_all_mods { # -l
     require File::Find;
 
     my $args = shift;
 
-
     my $fh = \*STDOUT;
 
-    INC: foreach my $inc ( @INC )
-        {
+    INC: foreach my $inc ( @INC ) {
         my( $wanted, $reporter ) = _generator();
         File::Find::find( { wanted => $wanted }, $inc );
 
         my $count = 0;
-        FILE: foreach my $file ( @{ $reporter->() } )
-            {
+        FILE: foreach my $file ( @{ $reporter->() } ) {
             my $version = _parse_version_safely( $file );
 
             my $module_name = _path_to_module( $inc, $file );
@@ -1463,8 +1400,7 @@ sub _list_all_mods # -l
     return HEY_IT_WORKED;
     }
 
-sub _generator
-    {
+sub _generator {
     my @files = ();
 
     sub { push @files,
@@ -1473,8 +1409,7 @@ sub _generator
     sub { \@files },
     }
 
-sub _parse_version_safely # stolen from PAUSE's mldistwatch, but refactored
-    {
+sub _parse_version_safely { # stolen from PAUSE's mldistwatch, but refactored
     my( $file ) = @_;
 
     local $/ = "\n";
@@ -1484,8 +1419,7 @@ sub _parse_version_safely # stolen from PAUSE's mldistwatch, but refactored
 
     my $in_pod = 0;
     my $version;
-    while( <FILE> )
-        {
+    while( <FILE> ) {
         chomp;
         $in_pod = /^=(?!cut)/ ? 1 : /^=cut/ ? 0 : $in_pod;
         next if $in_pod || /^\s*#/;
@@ -1503,8 +1437,7 @@ sub _parse_version_safely # stolen from PAUSE's mldistwatch, but refactored
     return $version;
     }
 
-sub _eval_version
-    {
+sub _eval_version {
     my( $line, $sigil, $var ) = @_;
 
         # split package line to hide from PAUSE
@@ -1527,8 +1460,7 @@ sub _eval_version
     return $version;
     }
 
-sub _path_to_module
-    {
+sub _path_to_module {
     my( $inc, $path ) = @_;
     return if length $path < length $inc;
 
@@ -1545,8 +1477,7 @@ sub _path_to_module
     }
 
 
-sub _expand_module
-    {
+sub _expand_module {
     my( $module ) = @_;
 
     my $expanded = CPAN::Shell->expandany( $module );
@@ -1582,18 +1513,15 @@ my $guessers = [
 
     ];
 
-sub _disable_guessers
-    {
+sub _disable_guessers {
     $_->[-1] = 0 for @$guessers;
     }
 
 # for -x
-sub _guess_namespace
-    {
+sub _guess_namespace {
     my $args = shift;
 
-    foreach my $arg ( @$args )
-        {
+    foreach my $arg ( @$args ) {
         $logger->debug( "Checking $arg" );
         my $guesses = _guess_at_module_name( $arg );
 
@@ -1618,8 +1546,7 @@ my $distance;
 my $_threshold;
 my $can_guess;
 my $shown_help = 0;
-sub _guess_at_module_name
-    {
+sub _guess_at_module_name {
     my( $target, $threshold ) = @_;
 
     unless( defined $distance ) {
