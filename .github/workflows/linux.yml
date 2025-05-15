@@ -195,4 +195,4 @@ jobs:
               run: |
                 cpanm --notest Devel::Cover Devel::Cover::Report::Coveralls
                 perl Makefile.PL
-                cover -test -report -ignore 'Makefile.PL' coveralls
+                cover -test +ignore 'Makefile.PL' -report coveralls
