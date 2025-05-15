@@ -95,6 +95,10 @@ jobs:
             image: perl:${{ matrix.perl-version }}
         steps:
             - uses: actions/checkout@v3
+            - name: git corrections
+              run: |
+                pwd
+                git config --global --add safe.directory `pwd`
             - name: Platform check
               run: uname -a
             - name: setup platform
