@@ -11,7 +11,7 @@ if ( CPAN::Version->vlt($App::Cpan::Upgraded::VERSION, $minver) ) {
     warn "WARNING: your version of App::Cpan::Upgraded is $App::Cpan::Upgraded::VERSION while we would expect at least $minver";
 }
 
-$VERSION = '1.681';
+$VERSION = App::Cpan::Upgraded->VERSION;
 
 my $rc = App::Cpan::Upgraded->run( @ARGV );
 

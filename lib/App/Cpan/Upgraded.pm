@@ -6,7 +6,7 @@ use vars qw($VERSION $UPGRADED);
 
 use if $] < 5.008 => 'IO::Scalar';
 
-$VERSION = '1.682';
+$VERSION = '2.001';
 
 =head1 NAME
 
