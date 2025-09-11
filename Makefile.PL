@@ -69,6 +69,8 @@ my %WriteMakefile = (
 	'PREREQ_PM' => {
 		'Carp' => '0',
 		'CPAN' => '2.36',
+		'HTTP::Tiny' => '0',
+		'JSON::PP'   => '0',
 		},
 
 	'META_MERGE' => {

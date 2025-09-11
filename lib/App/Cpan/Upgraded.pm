@@ -292,14 +292,17 @@ is C</usr/local/bin/git>.
 
 =cut
 
-use autouse Carp => qw(carp croak cluck);
 use CPAN 1.80 (); # needs no test
 use Config;
-use autouse Cwd => qw(cwd);
-use autouse 'Data::Dumper' => qw(Dumper);
-use File::Spec::Functions qw(catfile file_name_is_absolute rel2abs);
-use File::Basename;
+use Data::Dumper;
 use Getopt::Std;
+
+use autouse 'Carp'                  => qw(carp croak cluck);
+use autouse 'Cwd'                   => qw(cwd);
+use autouse 'File::Basename'        => qw(dirname);
+use autouse 'File::Spec::Functions' => qw(catfile file_name_is_absolute rel2abs);
+use autouse 'JSON::PP'              => qw(decode_json);
+use autouse 'User::pwent'           => qw(getpw);
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Internal constants
@@ -348,6 +351,8 @@ $Default = 'default';
 sub NO_ARGS   () { 0 }
 sub ARGS      () { 1 }
 sub GOOD_EXIT () { 0 }
+
+sub dumper { Data::Dumper->new([@_])->Indent(1)->Sortkeys(1)->Terse(1)->Useqq(1)->Dump }
 
 %Method_table = (
 # key => [ sub ref, takes args?, exit value, description ]
@@ -506,7 +511,7 @@ sub run {
     $logger->debug( "Patched cargo culting" );
 
     my $options = $class->_process_options;
-    $logger->debug( "Options are @{[Dumper($options)]}" );
+    $logger->debug( "Options are @{[dumper($options)]}" );
 
     $class->_process_setup_options( $options );
 
@@ -566,8 +571,17 @@ sub _safe_load_module {
     local @INC = @INC;
     pop @INC if $INC[-1] eq '.';
 
-    eval "require $name; 1";
-}
+    my $rc = eval "require $name; 1";
+    unless( $rc ) {
+    	$logger->error( "Could not load $name" );
+    	}
+
+    return $rc;
+	}
+
+sub _safe_load_modules {
+	_safe_load_module($_) for @_;
+	}
 
 sub _init_logger {
     my $log4perl_loaded = _safe_load_module("Log::Log4perl");
@@ -900,9 +914,8 @@ sub _expand_filename {
     }
 
 sub _home_of {
-    require User::pwent;
     my( $user ) = @_;
-    my $ent = User::pwent::getpw($user) or return;
+    my $ent = getpw($user) or return;
     return $ent->dir;
     }
 
@@ -1178,28 +1191,29 @@ sub _get_file {
     # subroutine.
     return { path => undef, success => 0 } unless defined $path;
 
-    my $loaded = _safe_load_module("LWP::Simple");
-    croak "You need LWP::Simple to use features that fetch files from CPAN\n"
+    my $loaded = _safe_load_module("HTTP::Tiny");
+    croak "You need HTTP::Tiny to use features that fetch files from CPAN\n"
         unless $loaded;
 
     my $file = substr $path, rindex( $path, '/' ) + 1;
     my $store_path = catfile( cwd(), $file );
     $logger->debug( "Store path is $store_path" );
 
-    my $status_code;
-    my $success = 0;
+    my $response;
     foreach my $site ( @{ $CPAN::Config->{urllist} } ) {
         my $fetch_path = join "/", $site, $path;
         $logger->debug( "Trying $fetch_path" );
-        $status_code = LWP::Simple::getstore( $fetch_path, $store_path );
-        if( 200 <= $status_code and $status_code < 300 ) {
-            $success = 1;
-            last;
-            }
-        $logger->warn( "Could not get [$fetch_path]: Status code $status_code" );
+        $response = HTTP::Tiny->new->mirror( $fetch_path, $store_path, {} );
+        last if $response->{'success'};
+        $logger->warn( "Could not get [$fetch_path]: Status code " . $response->{'status'} );
         }
 
-    return { path => $path, store_path => $store_path, status_code => $status_code, success => $success };
+    return {
+    	path        => $path,
+    	store_path  => $store_path,
+    	status_code => $response->{'status'},
+    	success     => $response->{'success'}
+    	};
     }
 
 sub _gitify {
@@ -1241,48 +1255,79 @@ sub _show_Changes {
     my $args = shift;
 
     foreach my $arg ( @$args ) {
-        $logger->info( "Checking $arg\n" );
+        $logger->info( "Checking Changes for $arg\n" );
 
         my $module = _expand_module( $arg ) or next;
-
+        $logger->debug( dumper($module) );
         my $out = _get_cpanpm_output();
+        next unless eval { $module->id };
 
-        next unless eval { $module->inst_file };
-        #next if $module->uptodate;
-
-        ( my $id = $module->id() ) =~ s/::/\-/;
-
-        my $url = "http://search.cpan.org/~" . lc( $module->userid ) . "/" .
-            $id . "-" . $module->cpan_version() . "/";
-
-        #print "URL: $url\n";
-        _get_changes_file($url);
+        print _get_changes_file( $module->id );
         }
 
     return HEY_IT_WORKED;
     }
 
 sub _get_changes_file {
-    croak "Reading Changes files requires LWP::Simple and URI\n"
-        unless _safe_load_module("LWP::Simple") && _safe_load_module("URI");
+	my $r = _safe_load_modules(qw(HTTP::Tiny));
 
-    my $url = shift;
+    my $module = shift;
+	$logger->debug("getting Changes for <$module>");
 
-    my $content = LWP::Simple::get( $url );
-    $logger->info( "Got $url ..." ) if defined $content;
-    #print $content;
+	my $distribution = _get_distribution_name_from_module( $module );
+	$logger->debug("Distribution name is <$distribution>");
+	return unless defined $distribution;
 
-    my( $change_link ) = $content =~ m|<a href="(.*?)">Changes</a>|gi;
+	my $url = "https://fastapi.metacpan.org/v1/changes/$distribution";
+    $logger->debug( "Fetching $url" );
 
-    my $changes_url = URI->new_abs( $change_link, $url );
-    $logger->debug( "Change link is: $changes_url" );
+	my $response = HTTP::Tiny->new->get( $url );
+	unless( $response->{'success'} ) {
+		$logger->error("Could not fetch contents for $url");
+		return;
+		}
 
-    my $changes =  LWP::Simple::get( $changes_url );
+	my $decoded = eval { decode_json($response->{'content'}) };
+	unless( $decoded ) {
+		$logger->error("Could not decode JSON for $url");
+		return;
+		}
 
-    print $changes;
+	return unless exists $decoded->{'content'};
+	my $changes = $decoded->{'content'};
 
-    return HEY_IT_WORKED;
+    return $changes;
     }
+
+sub _get_distribution_name_from_module {
+	my $r = _safe_load_modules( qw(HTTP::Tiny) );
+
+	my( $module ) = @_;
+    my $url = "https://fastapi.metacpan.org/v1/module/" . $module;
+	my $response = HTTP::Tiny->new->get( $url );
+	unless( $response->{'success'} ) {
+		$logger->error( "Could not fetch $url" );
+		return;
+		}
+
+	unless( $response->{'content'} ) {
+		$logger->error("No distribution name for $module");
+		return;
+		}
+
+	return do {
+		my $decoded = eval { decode_json($response->{'content'}) };
+		if( ! defined $decoded ) {
+			$logger->error( "Could not decode JSON from $url" ); ();
+			}
+		elsif( ! exists $decoded->{'distribution'} ) {
+			$logger->error( "Missing content in JSON from $url" ); ();
+			}
+		else {
+			$decoded->{'distribution'};
+			}
+		};
+	}
 
 sub _show_Author {
     my $args = shift;
