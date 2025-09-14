@@ -327,82 +327,13 @@ use vars qw(
 	%CPAN_METHODS
 	@CPAN_OPTIONS
 	$Default
-	@META_OPTIONS
-    %Method_table
-    %Method_table_index
-	@option_order
     );
 
-@META_OPTIONS = qw( h v V I g G M: C A D O l L a r p P j: J w x X );
 
 $Default = 'default';
 
-%CPAN_METHODS = ( # map switches to method names in CPAN::Shell
-    $Default => 'install',
-    'c'      => 'clean',
-    'f'      => 'force',
-    'i'      => 'install',
-    'm'      => 'make',
-    't'      => 'test',
-    'u'      => 'upgrade',
-    'T'      => 'notest',
-    's'      => 'shell',
-    );
-@CPAN_OPTIONS = grep { $_ ne $Default } sort keys %CPAN_METHODS;
 
-@option_order = ( @META_OPTIONS, @CPAN_OPTIONS );
 
-%Method_table = (
-# key => [ sub ref, takes args?, exit value, description ]
-
-    # options that do their thing first, then exit
-    h =>  [ \&_print_help,          NO_ARGS, GOOD_EXIT, 'Printing help'                ],
-    v =>  [ \&_print_version,       NO_ARGS, GOOD_EXIT, 'Printing version'             ],
-    V =>  [ \&_print_details,       NO_ARGS, GOOD_EXIT, 'Printing detailed version'    ],
-    X =>  [ \&_list_all_namespaces, NO_ARGS, GOOD_EXIT, 'Listing all namespaces'       ],
-
-    # options that affect other options
-    j =>  [ \&_load_config,          ARGS, GOOD_EXIT, 'Use specified config file'    ],
-    J =>  [ \&_dump_config,       NO_ARGS, GOOD_EXIT, 'Dump configuration to stdout' ],
-    F =>  [ \&_lock_lobotomy,     NO_ARGS, GOOD_EXIT, 'Turn off CPAN.pm lock files'  ],
-    I =>  [ \&_load_local_lib,    NO_ARGS, GOOD_EXIT, 'Loading local::lib'           ],
-    M =>  [ \&_use_these_mirrors,    ARGS, GOOD_EXIT, 'Setting per session mirrors'  ],
-    P =>  [ \&_find_good_mirrors, NO_ARGS, GOOD_EXIT, 'Finding good mirrors'         ],
-    w =>  [ \&_turn_on_warnings,  NO_ARGS, GOOD_EXIT, 'Turning on warnings'          ],
-
-    # options that do their one thing
-    g =>  [ \&_download_command,     ARGS, GOOD_EXIT, 'Download the latest distro'        ],
-    G =>  [ \&_gitify,               ARGS, GOOD_EXIT, 'Down and gitify the latest distro' ],
-
-    C =>  [ \&_show_Changes,         ARGS, GOOD_EXIT, 'Showing Changes file'         ],
-    A =>  [ \&_show_Author,          ARGS, GOOD_EXIT, 'Showing Author'               ],
-    D =>  [ \&_show_Details,         ARGS, GOOD_EXIT, 'Showing Details'              ],
-    O =>  [ \&_show_out_of_date,  NO_ARGS, GOOD_EXIT, 'Showing Out of date'          ],
-    l =>  [ \&_list_all_mods,     NO_ARGS, GOOD_EXIT, 'Listing all modules'          ],
-
-    L =>  [ \&_show_author_mods,     ARGS, GOOD_EXIT, 'Showing author mods'          ],
-    a =>  [ \&_create_autobundle, NO_ARGS, GOOD_EXIT, 'Creating autobundle'          ],
-    p =>  [ \&_ping_mirrors,      NO_ARGS, GOOD_EXIT, 'Pinging mirrors'              ],
-
-    r =>  [ \&_recompile,         NO_ARGS, GOOD_EXIT, 'Recompiling'                  ],
-    u =>  [ \&_upgrade,           NO_ARGS, GOOD_EXIT, 'Running `make test`'          ],
-    's' => [ \&_shell,            NO_ARGS, GOOD_EXIT, 'Drop into the CPAN.pm shell'  ],
-
-    'x' => [ \&_guess_namespace,     ARGS, GOOD_EXIT, 'Guessing namespaces'          ],
-    c =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make clean`'         ],
-    f =>  [ \&_default,              ARGS, GOOD_EXIT, 'Installing with force'        ],
-    i =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make install`'       ],
-    'm' => [ \&_default,             ARGS, GOOD_EXIT, 'Running `make`'               ],
-    t =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make test`'          ],
-    T =>  [ \&_default,              ARGS, GOOD_EXIT, 'Installing with notest'       ],
-    );
-
-%Method_table_index = (
-    code        => 0,
-    takes_args  => 1,
-    exit_value  => 2,
-    description => 3,
-    );
 }
 
 BEGIN {
@@ -517,6 +448,25 @@ BEGIN {
 		$result || ();
 		}
 	} # _cpanpm_output_indicates_failure
+
+sub _cpan_methods {
+	%CPAN_METHODS = ( # map switches to method names in CPAN::Shell
+		$Default => 'install',
+		'c'      => 'clean',
+		'f'      => 'force',
+		'i'      => 'install',
+		'm'      => 'make',
+		't'      => 'test',
+		'u'      => 'upgrade',
+		'T'      => 'notest',
+		's'      => 'shell',
+    	);
+	}
+
+sub _cpan_options {
+	my %CPAN_METHODS = _cpan_methods();
+	@CPAN_OPTIONS = grep { $_ ne $Default } sort keys %CPAN_METHODS;
+	}
 
 sub _cpanpm_output_indicates_success {
     my $last_line = _get_cpanpm_last_line();
@@ -1198,6 +1148,66 @@ sub _make_path {
     return $path;
     }
 
+sub _meta_options {
+	my @META_OPTIONS = qw( h v V I g G M: C A D O l L a r p P j: J w x X );
+	}
+
+sub _method_table {
+	my %Method_table = (
+	# key => [ sub ref, takes args?, exit value, description ]
+
+		# options that do their thing first, then exit
+		h =>  [ \&_print_help,          NO_ARGS, GOOD_EXIT, 'Printing help'                ],
+		v =>  [ \&_print_version,       NO_ARGS, GOOD_EXIT, 'Printing version'             ],
+		V =>  [ \&_print_details,       NO_ARGS, GOOD_EXIT, 'Printing detailed version'    ],
+		X =>  [ \&_list_all_namespaces, NO_ARGS, GOOD_EXIT, 'Listing all namespaces'       ],
+
+		# options that affect other options
+		j =>  [ \&_load_config,          ARGS, GOOD_EXIT, 'Use specified config file'    ],
+		J =>  [ \&_dump_config,       NO_ARGS, GOOD_EXIT, 'Dump configuration to stdout' ],
+		F =>  [ \&_lock_lobotomy,     NO_ARGS, GOOD_EXIT, 'Turn off CPAN.pm lock files'  ],
+		I =>  [ \&_load_local_lib,    NO_ARGS, GOOD_EXIT, 'Loading local::lib'           ],
+		M =>  [ \&_use_these_mirrors,    ARGS, GOOD_EXIT, 'Setting per session mirrors'  ],
+		P =>  [ \&_find_good_mirrors, NO_ARGS, GOOD_EXIT, 'Finding good mirrors'         ],
+		w =>  [ \&_turn_on_warnings,  NO_ARGS, GOOD_EXIT, 'Turning on warnings'          ],
+
+		# options that do their one thing
+		g =>  [ \&_download_command,     ARGS, GOOD_EXIT, 'Download the latest distro'        ],
+		G =>  [ \&_gitify,               ARGS, GOOD_EXIT, 'Down and gitify the latest distro' ],
+
+		C =>  [ \&_show_Changes,         ARGS, GOOD_EXIT, 'Showing Changes file'         ],
+		A =>  [ \&_show_Author,          ARGS, GOOD_EXIT, 'Showing Author'               ],
+		D =>  [ \&_show_Details,         ARGS, GOOD_EXIT, 'Showing Details'              ],
+		O =>  [ \&_show_out_of_date,  NO_ARGS, GOOD_EXIT, 'Showing Out of date'          ],
+		l =>  [ \&_list_all_mods,     NO_ARGS, GOOD_EXIT, 'Listing all modules'          ],
+
+		L =>  [ \&_show_author_mods,     ARGS, GOOD_EXIT, 'Showing author mods'          ],
+		a =>  [ \&_create_autobundle, NO_ARGS, GOOD_EXIT, 'Creating autobundle'          ],
+		p =>  [ \&_ping_mirrors,      NO_ARGS, GOOD_EXIT, 'Pinging mirrors'              ],
+
+		r =>  [ \&_recompile,         NO_ARGS, GOOD_EXIT, 'Recompiling'                  ],
+		u =>  [ \&_upgrade,           NO_ARGS, GOOD_EXIT, 'Running `make test`'          ],
+		's' => [ \&_shell,            NO_ARGS, GOOD_EXIT, 'Drop into the CPAN.pm shell'  ],
+
+		'x' => [ \&_guess_namespace,     ARGS, GOOD_EXIT, 'Guessing namespaces'          ],
+		c =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make clean`'         ],
+		f =>  [ \&_default,              ARGS, GOOD_EXIT, 'Installing with force'        ],
+		i =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make install`'       ],
+		'm' => [ \&_default,             ARGS, GOOD_EXIT, 'Running `make`'               ],
+		t =>  [ \&_default,              ARGS, GOOD_EXIT, 'Running `make test`'          ],
+		T =>  [ \&_default,              ARGS, GOOD_EXIT, 'Installing with notest'       ],
+		);
+	}
+
+sub _method_table_index {
+	my %Method_table_index = (
+		code        => 0,
+		takes_args  => 1,
+		exit_value  => 2,
+		description => 3,
+    	);
+	}
+
 sub _mirror_file {
     my $file = do {
         my $file = 'MIRRORED.BY';
@@ -1212,6 +1222,10 @@ sub _mirror_file {
             }
         };
     }
+
+sub _option_order {
+	my @option_order = ( _meta_options(), _cpan_options() );
+	}
 
 sub _parse_version_safely { # stolen from PAUSE's mldistwatch, but refactored
     my( $file ) = @_;
@@ -1357,7 +1371,7 @@ sub _process_options {
 
     # if no arguments, just drop into the shell
     if( 0 == @ARGV ) { CPAN::shell(); exit 0 }
-    elsif (Getopt::Std::getopts( join( '', @option_order ), \%options )) {
+    elsif (Getopt::Std::getopts( join( '', _option_order() ), \%options )) {
          \%options;
         }
     else { exit 1 }
@@ -1365,6 +1379,9 @@ sub _process_options {
 
 sub _process_setup_options {
     my( $class, $options ) = @_;
+
+	my %Method_table       = _method_table();
+	my %Method_table_index = _method_table_index();
 
     if( $options->{j} ) {
         $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
@@ -1396,7 +1413,7 @@ sub _process_setup_options {
         delete $options->{o};
         }
 
-    my $option_count = grep { $options->{$_} } @option_order;
+    my $option_count = grep { $options->{$_} } _option_order();
     no warnings 'uninitialized';
 
     # don't count options that imply installation
@@ -1438,7 +1455,10 @@ sub run {
 
     $class->_setup_environment( $options );
 
-    OPTION: foreach my $option ( @option_order ) {
+	my %Method_table       = _method_table();
+	my %Method_table_index = _method_table_index();
+
+    OPTION: foreach my $option ( _option_order() ) {
         next unless $options->{$option};
 
         my( $sub, $takes_args, $description ) =
