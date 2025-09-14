@@ -212,7 +212,7 @@ Text::Levenshtein::Damerau.
 
 =item -X
 
-Dump all the namespaces to standard output.
+Dump all the namespaces in the packages file to standard output.
 
 =back
 
