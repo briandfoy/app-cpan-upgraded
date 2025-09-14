@@ -411,78 +411,7 @@ sub dumper { Data::Dumper->new([@_])->Indent(1)->Sortkeys(1)->Terse(1)->Useqq(1)
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # finally, do some argument processing
 
-sub _stupid_interface_hack_for_non_rtfmers {
-    no warnings 'uninitialized';
-    shift @ARGV if( $ARGV[0] eq 'install' and @ARGV > 1 )
-    }
 
-sub _process_options {
-    my %options;
-
-    unshift @ARGV, grep $_, split /\s+/, $ENV{CPAN_OPTS} || '';
-
-    # if no arguments, just drop into the shell
-    if( 0 == @ARGV ) { CPAN::shell(); exit 0 }
-    elsif (Getopt::Std::getopts( join( '', @option_order ), \%options )) {
-         \%options;
-        }
-    else { exit 1 }
-    }
-
-sub _process_setup_options {
-    my( $class, $options ) = @_;
-
-    if( $options->{j} ) {
-        $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
-        delete $options->{j};
-        }
-    elsif ( grep { exists $options->{$_} } keys %CPAN_METHODS ) { # these are options that need CPAN config
-        # this is what CPAN.pm would do otherwise
-        local $CPAN::Be_Silent = 1;
-        CPAN::HandleConfig->load(
-            # be_silent  => 1, deprecated
-            write_file => 0,
-            );
-        }
-
-    $class->_turn_off_testing if $options->{T};
-
-    foreach my $o ( qw(F I w P M) ) {
-        next unless exists $options->{$o};
-        $Method_table{$o}[ $Method_table_index{code} ]->( $options->{$o} );
-        delete $options->{$o};
-        }
-
-    if( $options->{o} ) {
-        my @pairs = map { [ split /=/, $_, 2 ] } split /,/, $options->{o};
-        foreach my $pair ( @pairs ) {
-            my( $setting, $value ) = @$pair;
-            $CPAN::Config->{$setting} = $value;
-            }
-        delete $options->{o};
-        }
-
-    my $option_count = grep { $options->{$_} } @option_order;
-    no warnings 'uninitialized';
-
-    # don't count options that imply installation
-    foreach my $opt ( qw(f T) ) { # don't count force or notest
-        $option_count -= $options->{$opt};
-        }
-
-    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-    # if there are no options, set -i (this line fixes RT ticket 16915)
-    $options->{i}++ unless $option_count;
-    }
-
-sub _setup_environment {
-# should we override or set defaults? If this were a true interactive
-# session, we'd be in the CPAN shell.
-
-# https://github.com/Perl-Toolchain-Gang/toolchain-site/blob/master/lancaster-consensus.md
-    $ENV{NONINTERACTIVE_TESTING} = 1 unless defined $ENV{NONINTERACTIVE_TESTING};
-    $ENV{PERL_MM_USE_DEFAULT}    = 1 unless defined $ENV{PERL_MM_USE_DEFAULT};
-    }
 
 =item run( ARGS )
 
@@ -502,49 +431,6 @@ BEGIN {
 
 my $logger = Local::Logger::Null->new;
 
-sub run {
-    my( $class, @args ) = @_;
-    local @ARGV = @args;
-    my $return_value = HEY_IT_WORKED; # assume that things will work
-
-    $logger = $class->_init_logger;
-    $logger->debug( "Using logger from @{[ref $logger]}" );
-
-    $class->_hook_into_CPANpm_report;
-    $logger->debug( "Hooked into output" );
-
-    $class->_stupid_interface_hack_for_non_rtfmers;
-    $logger->debug( "Patched cargo culting" );
-
-    my $options = $class->_process_options;
-    $logger->debug( "Options are @{[dumper($options)]}" );
-
-    $class->_process_setup_options( $options );
-
-    $class->_setup_environment( $options );
-
-    OPTION: foreach my $option ( @option_order ) {
-        next unless $options->{$option};
-
-        my( $sub, $takes_args, $description ) =
-            map { $Method_table{$option}[ $Method_table_index{$_} ] }
-            qw( code takes_args description );
-
-        unless( ref $sub eq ref sub {} ) {
-            $return_value = THE_PROGRAMMERS_AN_IDIOT;
-            last OPTION;
-            }
-
-        $logger->info( "[$option] $description -- ignoring other arguments" )
-            if( @ARGV && ! $takes_args );
-
-        $return_value = $sub->( \ @ARGV, $options );
-
-        last;
-        }
-
-    return $return_value;
-    }
 
 my $LEVEL;
 BEGIN {
@@ -602,119 +488,6 @@ BEGIN {
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
-sub _default {
-    my( $args, $options ) = @_;
-
-    my $switch = '';
-
-    # choose the option that we're going to use
-    # we'll deal with 'f' (force) later, so skip it
-    foreach my $option ( @CPAN_OPTIONS )
-        {
-        next if ( $option eq 'f' or $option eq 'T' );
-        next unless $options->{$option};
-        $switch = $option;
-        last;
-        }
-
-    # 1. with no switches, but arguments, use the default switch (install)
-    # 2. with no switches and no args, start the shell
-    # 3. With a switch but no args, die! These switches need arguments.
-       if( not $switch and     @$args ) { $switch = $Default;  }
-    elsif( not $switch and not @$args ) { return CPAN::shell() }
-    elsif(     $switch and not @$args )
-        { die "Nothing to $CPAN_METHODS{$switch}!\n"; }
-
-    # Get and check the method from CPAN::Shell
-    my $method = $CPAN_METHODS{$switch};
-    die "CPAN.pm cannot $method!\n" unless CPAN::Shell->can( $method );
-
-    # call the CPAN::Shell method, with force or notest if specified
-    my $action = do {
-           if( $options->{f} ) { sub { CPAN::Shell->force( $method, @_ )  } }
-        elsif( $options->{T} ) { sub { CPAN::Shell->notest( $method, @_ ) } }
-        else                   { sub { CPAN::Shell->$method( @_ )         } }
-        };
-
-    # How do I handle exit codes for multiple arguments?
-    my @errors = ();
-
-    $options->{x} or _disable_guessers();
-
-    foreach my $arg ( @$args ) {
-        # check the argument and perhaps capture typos
-        my $module = _expand_module( $arg ) or do {
-            $logger->error( "Skipping $arg because I couldn't find a matching namespace." );
-            next;
-            };
-
-        _clear_cpanpm_output();
-        $action->( $arg );
-
-        my $error = _cpanpm_output_indicates_failure();
-        push @errors, $error if $error;
-        }
-
-    return do {
-        if( @errors ) { $errors[0] }
-        else { HEY_IT_WORKED }
-        };
-
-    }
-
-sub _default_log_level { 'INFO' }
-
-sub _init_logger {
-	my($self) = @_;
-    my $log4perl_loaded = _safe_load_module("Log::Log4perl");
-
-	my $level = uc( $ENV{'CPANSCRIPT_LOGLEVEL'} // $self->_default_log_level );
-
-    unless( $log4perl_loaded ) {
-        $logger = Local::Logger->new($level);
-		$logger->info("Loading internal logger. Log::Log4perl recommended for better logging\n");
-        return $logger;
-        }
-
-    Log::Log4perl::init( \ <<"HERE" );
-log4perl.rootLogger=$level, A1
-log4perl.appender.A1=Log::Log4perl::Appender::Screen
-log4perl.appender.A1.layout=PatternLayout
-log4perl.appender.A1.layout.ConversionPattern=%m%n
-HERE
-
-    return Log::Log4perl->get_logger( 'App::Cpan' );
-    }
-
-# load a module without searching the default entry for the current
-# directory
-sub _safe_load_module {
-    my($name) = @_;
-
-    local @INC = @INC;
-    pop @INC if $INC[-1] eq '.';
-
-    my $rc = eval "require $name; 1";
-    unless( $rc ) {
-    	$logger->error( "Could not load $name" );
-    	}
-
-    return $rc;
-	}
-
-sub _safe_load_modules {
-	_safe_load_module($_) for @_;
-	}
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-=for comment
-
-CPAN.pm sends all the good stuff either to STDOUT, or to a temp
-file if $CPAN::Be_Silent is set. I have to intercept that output
-so I can find out what happened.
-
-=cut
 
 BEGIN {
 my $scalar = '';
@@ -804,6 +577,52 @@ BEGIN {
 		}
 	}
 
+BEGIN {
+	my $modules;
+	sub _get_all_namespaces {
+		return $modules if $modules;
+		$modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
+		}
+	}
+
+sub _check_install_dirs {
+    my $makepl_arg   = $CPAN::Config->{makepl_arg};
+    my $mbuildpl_arg = $CPAN::Config->{mbuildpl_arg};
+
+    my @custom_dirs;
+    # PERL_MM_OPT
+    push @custom_dirs,
+        $makepl_arg   =~ m/INSTALL_BASE\s*=\s*(\S+)/g,
+        $mbuildpl_arg =~ m/--install_base\s*=\s*(\S+)/g;
+
+    if( @custom_dirs ) {
+        foreach my $dir ( @custom_dirs ) {
+            _print_inc_dir_report( $dir );
+            }
+        }
+
+    # XXX: also need to check makepl_args, etc
+
+    my @checks = (
+        [ 'core',         [ grep $_, @Config{qw(installprivlib installarchlib)}      ] ],
+        [ 'vendor',       [ grep $_, @Config{qw(installvendorlib installvendorarch)} ] ],
+        [ 'site',         [ grep $_, @Config{qw(installsitelib installsitearch)}     ] ],
+        [ 'PERL5LIB',     _split_paths( $ENV{PERL5LIB} ) ],
+        [ 'PERLLIB',      _split_paths( $ENV{PERLLIB} )  ],
+        );
+
+    $logger->info( '-' x 50 . "\nChecking install dirs..." );
+    foreach my $tuple ( @checks ) {
+        my( $label ) = $tuple->[0];
+
+        $logger->info( "Checking $label" );
+        $logger->info( "\tno directories for $label" ) unless @{ $tuple->[1] };
+        foreach my $dir ( @{ $tuple->[1] } ) {
+            _print_inc_dir_report( $dir );
+            }
+        }
+    }
+
 sub _cpanpm_output_indicates_success {
     my $last_line = _get_cpanpm_last_line();
 
@@ -819,37 +638,601 @@ sub _cpanpm_output_is_vague {
     return TRUE;
     }
 
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-sub _turn_on_warnings {
-    carp "Warnings are implemented yet";
-    return HEY_IT_WORKED;
-    }
-
-sub _turn_off_testing {
-    $logger->debug( 'Trusting test report history' );
-    $CPAN::Config->{trust_test_report_history} = 1;
-    return HEY_IT_WORKED;
-    }
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-sub _print_help {
-    $logger->info( "Use perldoc to read the documentation" );
-    my $HAVE_PERLDOC = eval { require Pod::Perldoc; 1; };
-    if ($HAVE_PERLDOC) {
-        system qq{"$^X" -e "require Pod::Perldoc; Pod::Perldoc->run()" $0};
-        exit;
-    	}
-    else {
-        warn "Please install Pod::Perldoc, maybe try 'cpan -i Pod::Perldoc'\n";
-        return HEY_IT_WORKED;
-		}
-    }
-
-sub _print_version { # -v
+sub _create_autobundle {
     $logger->info(
-        "$0 script version $VERSION, CPAN.pm version " . CPAN->VERSION );
+        "Creating autobundle in $CPAN::Config->{cpan_home}/Bundle" );
+
+    CPAN::Shell->autobundle;
 
     return HEY_IT_WORKED;
+    }
+
+sub _default {
+    my( $args, $options ) = @_;
+
+    my $switch = '';
+
+    # choose the option that we're going to use
+    # we'll deal with 'f' (force) later, so skip it
+    foreach my $option ( @CPAN_OPTIONS ) {
+        next if ( $option eq 'f' or $option eq 'T' );
+        next unless $options->{$option};
+        $switch = $option;
+        last;
+        }
+
+    # 1. with no switches, but arguments, use the default switch (install)
+    # 2. with no switches and no args, start the shell
+    # 3. With a switch but no args, die! These switches need arguments.
+       if( not $switch and     @$args ) { $switch = $Default;  }
+    elsif( not $switch and not @$args ) { return CPAN::shell() }
+    elsif(     $switch and not @$args )
+        { die "Nothing to $CPAN_METHODS{$switch}!\n"; }
+
+    # Get and check the method from CPAN::Shell
+    my $method = $CPAN_METHODS{$switch};
+    die "CPAN.pm cannot $method!\n" unless CPAN::Shell->can( $method );
+
+    # call the CPAN::Shell method, with force or notest if specified
+    my $action = do {
+           if( $options->{f} ) { sub { CPAN::Shell->force( $method, @_ )  } }
+        elsif( $options->{T} ) { sub { CPAN::Shell->notest( $method, @_ ) } }
+        else                   { sub { CPAN::Shell->$method( @_ )         } }
+        };
+
+    # How do I handle exit codes for multiple arguments?
+    my @errors = ();
+
+    $options->{x} or _disable_guessers();
+
+    foreach my $arg ( @$args ) {
+        # check the argument and perhaps capture typos
+        my $module = _expand_module( $arg ) or do {
+            $logger->error( "Skipping $arg because I couldn't find a matching namespace." );
+            next;
+            };
+
+        _clear_cpanpm_output();
+        $action->( $arg );
+
+        my $error = _cpanpm_output_indicates_failure();
+        push @errors, $error if $error;
+        }
+
+    return do {
+        if( @errors ) { $errors[0] }
+        else { HEY_IT_WORKED }
+        };
+
+    }
+
+sub _default_log_level { 'INFO' }
+
+sub _disable_guessers {
+    $_->[-1] = 0 for @{_guessers()};
+    }
+
+sub _dump_config { # -J
+    my $args = shift;
+    require Data::Dumper;
+
+    my $fh = $args->[0] || \*STDOUT;
+
+    local $Data::Dumper::Sortkeys = 1;
+    my $dd = Data::Dumper->new(
+        [$CPAN::Config],
+        ['$CPAN::Config']
+        );
+
+    print $fh $dd->Dump, "\n1;\n__END__\n";
+
+    return HEY_IT_WORKED;
+    }
+
+sub _download {
+    my $args = shift;
+
+    my %results;
+    foreach my $arg ( @$args ) {
+        $logger->info( "Trying to download [$arg]" );
+
+        my $module = _expand_module( $arg );
+        unless( defined $module ) {
+            $results{$arg} = { path => $arg, success => 0 };
+            next;
+            }
+
+        $results{$arg} = _get_file( _make_path( $module ) );
+        $logger->info( "Downloaded [$arg] to [$results{$arg}{store_path}]" );
+        }
+
+    my $errors = grep { ! $results{$_}{success} } keys %results;
+
+    return \%results;
+    }
+
+sub _download_command {
+    my $results = _download(shift);
+    return ITS_NOT_MY_FAULT if grep { ! $results->{$_}{success} } keys %$results;
+    return HEY_IT_WORKED;
+    }
+
+sub _eval_version {
+    my( $line, $sigil, $var ) = @_;
+
+        # split package line to hide from PAUSE
+    my $eval = qq{
+        package
+          ExtUtils::MakeMaker::_version;
+
+        local $sigil$var;
+        \$$var=undef; do {
+            $line
+            }; \$$var
+        };
+
+    my $version = do {
+        local $^W = 0;
+        no strict;
+        eval( $eval );
+        };
+
+    return $version;
+    }
+
+sub _expand_filename { # Stolen from File::Path::Expand
+    my( $path ) = @_;
+    no warnings 'uninitialized';
+    $logger->debug( "Expanding path $path\n" );
+    $path =~ s{\A~([^/]+)?}{
+        _home_of( $1 || $> ) || "~$1"
+        }e;
+    return $path;
+    }
+
+sub _expand_module {
+    my( $module ) = @_;
+
+    my $expanded = CPAN::Shell->expandany( $module );
+    return $expanded if $expanded;
+    $expanded = CPAN::Shell->expand( "Module", $module );
+    unless( defined $expanded ) {
+        $logger->error( "Could not expand [$module]. Check the module name." );
+        my $threshold = (
+            grep { int }
+            sort { length $a <=> length $b }
+                length($module)/4, 4
+            )[0];
+
+        my $guesses = _guess_at_module_name( $module, $threshold );
+        if( defined $guesses and @$guesses ) {
+            $logger->info( "Perhaps you meant one of these:" );
+            foreach my $guess ( @$guesses ) {
+                $logger->info( "\t$guess" );
+                }
+            }
+        return;
+        }
+
+    return $expanded;
+    }
+
+sub _find_good_mirrors {
+    require CPAN::Mirrors;
+
+    my $mirrors = CPAN::Mirrors->new( _mirror_file() );
+
+    my @mirrors = $mirrors->best_mirrors(
+        how_many   => 5,
+        verbose    => 1,
+        );
+
+    foreach my $mirror ( @mirrors ) {
+        next unless eval { $mirror->can( 'http' ) };
+        _print_ping_report( $mirror->http );
+        }
+
+    $CPAN::Config->{urllist} = [
+        map { $_->http } @mirrors
+        ];
+    }
+
+sub _home_of {
+    my( $user ) = @_;
+    my $ent = getpw($user) or return;
+    return $ent->dir;
+    }
+
+sub _is_pingable_scheme {
+    my( $uri ) = @_;
+
+    $uri->scheme eq 'file'
+    }
+
+sub _generator {
+    my @files = ();
+
+    sub { push @files,
+        File::Spec->canonpath( $File::Find::name )
+        if m/\A\w+\.pm\z/ },
+    sub { \@files },
+    }
+
+sub _get_changes_file {
+	my $r = _safe_load_modules(qw(HTTP::Tiny));
+
+    my $module = shift;
+	$logger->debug("getting Changes for <$module>");
+
+	my $distribution = _get_distribution_name_from_module( $module );
+	$logger->debug("Distribution name is <$distribution>");
+	return unless defined $distribution;
+
+	my $url = "https://fastapi.metacpan.org/v1/changes/$distribution";
+    $logger->debug( "Fetching $url" );
+
+	my $response = HTTP::Tiny->new->get( $url );
+	unless( $response->{'success'} ) {
+		$logger->error("Could not fetch contents for $url");
+		return;
+		}
+
+	my $decoded = eval { decode_json($response->{'content'}) };
+	unless( $decoded ) {
+		$logger->error("Could not decode JSON for $url");
+		return;
+		}
+
+	return unless exists $decoded->{'content'};
+	my $changes = $decoded->{'content'};
+
+    return $changes;
+    }
+
+sub _get_default_inc {
+    require Config;
+
+    [ @Config::Config{ _vars() }, '.' ];
+    }
+
+sub _get_distribution_name_from_module {
+	my $r = _safe_load_modules( qw(HTTP::Tiny) );
+
+	my( $module ) = @_;
+    my $url = "https://fastapi.metacpan.org/v1/module/" . $module;
+	my $response = HTTP::Tiny->new->get( $url );
+	unless( $response->{'success'} ) {
+		$logger->error( "Could not fetch $url" );
+		return;
+		}
+
+	unless( $response->{'content'} ) {
+		$logger->error("No distribution name for $module");
+		return;
+		}
+
+	return do {
+		my $decoded = eval { decode_json($response->{'content'}) };
+		if( ! defined $decoded ) {
+			$logger->error( "Could not decode JSON from $url" ); ();
+			}
+		elsif( ! exists $decoded->{'distribution'} ) {
+			$logger->error( "Missing content in JSON from $url" ); ();
+			}
+		else {
+			$decoded->{'distribution'};
+			}
+		};
+	}
+
+sub _get_file {
+    my $path = shift;
+
+    # handle this case here to make it easier a level above. The form
+    # of the returned data structure is mostly contained in this
+    # subroutine.
+    return { path => undef, success => 0 } unless defined $path;
+
+    my $loaded = _safe_load_module("HTTP::Tiny");
+    croak "You need HTTP::Tiny to use features that fetch files from CPAN\n"
+        unless $loaded;
+
+    my $file = substr $path, rindex( $path, '/' ) + 1;
+    my $store_path = catfile( cwd(), $file );
+    $logger->debug( "Store path is $store_path" );
+
+    my $response;
+    foreach my $site ( @{ $CPAN::Config->{urllist} } ) {
+        my $fetch_path = join "/", $site, $path;
+        $logger->debug( "Trying $fetch_path" );
+        $response = HTTP::Tiny->new->mirror( $fetch_path, $store_path, {} );
+        last if $response->{'success'};
+        $logger->warn( "Could not get [$fetch_path]: Status code " . $response->{'status'} );
+        }
+
+    return {
+    	path        => $path,
+    	store_path  => $store_path,
+    	status_code => $response->{'status'},
+    	success     => $response->{'success'}
+    	};
+    }
+
+sub _get_ping_report {
+    require URI;
+    my( $mirror ) = @_;
+    my( $url ) = ref $mirror ? $mirror : URI->new( $mirror ); #XXX
+    require Net::Ping;
+
+    my $ping = Net::Ping->new( 'tcp', 1 );
+
+    if( $url->scheme eq 'file' ) {
+        return -e $url->file;
+        }
+
+    my( $port ) = $url->port;
+
+    return unless $port;
+
+    if ( $ping->can('port_number') ) {
+        $ping->port_number($port);
+        }
+    else {
+        $ping->{'port_num'} = $port;
+        }
+
+    $ping->hires(1) if $ping->can( 'hires' );
+    my( $alive, $rtt ) = eval{ $ping->ping( $url->host ) };
+    $alive ? $rtt : undef;
+    }
+
+sub _guessers {
+	my $guessers = [
+		[ qw( Text::Levenshtein::XS distance 7 1 ) ],
+		[ qw( Text::Levenshtein::Damerau::XS     xs_edistance 7 1 ) ],
+
+		[ qw( Text::Levenshtein     distance 7 1 ) ],
+		[ qw( Text::Levenshtein::Damerau::PP     pp_edistance 7 1 ) ],
+
+		];
+	}
+
+sub _gitify {
+    my $args = shift;
+
+    my $loaded = _safe_load_module("Archive::Extract");
+    croak "You need Archive::Extract to use features that gitify distributions\n"
+        unless $loaded;
+
+    my $starting_dir = cwd();
+
+    foreach my $arg ( @$args ) {
+        $logger->info( "Checking $arg" );
+        my $store_paths = _download( [ $arg ] );
+        $logger->debug( "gitify Store path is $store_paths->{$arg}" );
+        my $dirname = dirname( $store_paths->{$arg} );
+
+        my $ae = Archive::Extract->new( archive => $store_paths->{$arg} );
+        $ae->extract( to => $dirname );
+
+        chdir $ae->extract_path;
+
+        my $git = $ENV{GIT_COMMAND} || '/usr/local/bin/git';
+        croak "Could not find $git"    unless -e $git;
+        croak "$git is not executable" unless -x $git;
+
+        # can we do this in Pure Perl?
+        system( $git, 'init'    );
+        system( $git, qw( add . ) );
+        system( $git, qw( commit -a -m ), 'initial import' );
+        }
+
+    chdir $starting_dir;
+
+    return HEY_IT_WORKED;
+    }
+
+sub _guess_namespace {
+    my $args = shift;
+
+    foreach my $arg ( @$args ) {
+        $logger->debug( "Checking $arg" );
+        my $guesses = _guess_at_module_name( $arg );
+
+        foreach my $guess ( @{ _guessers() } ) {
+            print $guess, "\n";
+            }
+        }
+
+    return HEY_IT_WORKED;
+    }
+
+sub _init_logger {
+	my($self) = @_;
+    my $log4perl_loaded = _safe_load_module("Log::Log4perl");
+
+	my $level = uc( $ENV{'CPANSCRIPT_LOGLEVEL'} // $self->_default_log_level );
+
+    unless( $log4perl_loaded ) {
+        $logger = Local::Logger->new($level);
+		$logger->info("Loading internal logger. Log::Log4perl recommended for better logging\n");
+        return $logger;
+        }
+
+    Log::Log4perl::init( \ <<"HERE" );
+log4perl.rootLogger=$level, A1
+log4perl.appender.A1=Log::Log4perl::Appender::Screen
+log4perl.appender.A1.layout=PatternLayout
+log4perl.appender.A1.layout.ConversionPattern=%m%n
+HERE
+
+    return Log::Log4perl->get_logger( 'App::Cpan' );
+    }
+
+sub _list_all_mods { # -l
+    require File::Find;
+
+    my $args = shift;
+
+    my $fh = \*STDOUT;
+
+    INC: foreach my $inc ( @INC ) {
+        my( $wanted, $reporter ) = _generator();
+        File::Find::find( { wanted => $wanted }, $inc );
+
+        my $count = 0;
+        FILE: foreach my $file ( @{ $reporter->() } ) {
+            my $version = _parse_version_safely( $file );
+
+            my $module_name = _path_to_module( $inc, $file );
+            next FILE unless defined $module_name;
+
+            print $fh "$module_name\t$version\n";
+
+            #last if $count++ > 5;
+            }
+        }
+
+    return HEY_IT_WORKED;
+    }
+
+sub _list_all_namespaces {
+    my $modules = _get_all_namespaces();
+
+    foreach my $module ( @$modules ) {
+        print $module, "\n";
+        }
+    }
+
+sub _load_config { # -j
+    my $argument = shift;
+
+    my $file = file_name_is_absolute( $argument ) ? $argument : rel2abs( $argument );
+    croak( "cpan config file [$file] for -j does not exist!\n" ) unless -e $file;
+
+    # should I clear out any existing config here?
+    $CPAN::Config = {};
+    delete $INC{'CPAN/Config.pm'};
+
+    my $rc = eval "require '$file'";
+
+    # CPAN::HandleConfig::require_myconfig_or_config looks for this
+    $INC{'CPAN/MyConfig.pm'} = 'fake out!';
+
+    # CPAN::HandleConfig::load looks for this
+    $CPAN::Config_loaded = 'fake out';
+
+    croak( "Could not load [$file]: $@\n") unless $rc;
+
+    return HEY_IT_WORKED;
+    }
+
+sub _lock_lobotomy { # -F
+    no warnings 'redefine';
+
+    *CPAN::_flock    = sub { 1 };
+    *CPAN::checklock = sub { 1 };
+
+    return HEY_IT_WORKED;
+    }
+
+sub _load_local_lib { # -I
+    $logger->debug( "Loading local::lib" );
+
+    my $rc = _safe_load_module("local::lib");
+    unless( $rc ) {
+        $logger->logdie( "Could not load local::lib" );
+        }
+
+    local::lib->import;
+
+    return HEY_IT_WORKED;
+    }
+
+sub _make_path {
+    my $arg = shift;
+
+    my $path = join "/", qw(authors id), do {
+           if( eval {$arg->isa('CPAN::Distribution')} ) { $arg->normalize }
+        elsif( eval {$arg->isa('CPAN::Module')}       ) { $arg->cpan_file }
+        else { undef }
+        };
+
+    $logger->debug( "CPAN path for [$arg] is [$path]" );
+
+    return $path;
+    }
+
+sub _mirror_file {
+    my $file = do {
+        my $file = 'MIRRORED.BY';
+        my $local_path = File::Spec->catfile(
+            $CPAN::Config->{keep_source_where}, $file );
+
+        if( -e $local_path ) { $local_path }
+        else {
+            require CPAN::FTP;
+            CPAN::FTP->localize( $file, $local_path, 3, 1 );
+            $local_path;
+            }
+        };
+    }
+
+sub _parse_version_safely { # stolen from PAUSE's mldistwatch, but refactored
+    my( $file ) = @_;
+
+    local $/ = "\n";
+    local $_; # don't mess with the $_ in the map calling this
+
+    return unless open FILE, "<$file";
+
+    my $in_pod = 0;
+    my $version;
+    while( <FILE> ) {
+        chomp;
+        $in_pod = /^=(?!cut)/ ? 1 : /^=cut/ ? 0 : $in_pod;
+        next if $in_pod || /^\s*#/;
+
+        next unless /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/;
+        my( $sigil, $var ) = ( $1, $2 );
+
+        $version = _eval_version( $_, $sigil, $var );
+        last;
+        }
+    close FILE;
+
+    return 'undef' unless defined $version;
+
+    return $version;
+    }
+
+sub _path_to_module {
+    my( $inc, $path ) = @_;
+    return if length $path < length $inc;
+
+    my $module_path = substr( $path, length $inc );
+    $module_path =~ s/\.pm\z//;
+
+    # XXX: this is cheating and doesn't handle everything right
+    my @dirs = grep { ! /\W/ } File::Spec->splitdir( $module_path );
+    shift @dirs;
+
+    my $module_name = join "::", @dirs;
+
+    return $module_name;
+    }
+
+sub _ping_mirrors {
+    my $urls   = $CPAN::Config->{urllist};
+    require URI;
+
+    foreach my $url ( @$urls ) {
+        my( $obj ) = URI->new( $url );
+        next unless _is_pingable_scheme( $obj );
+        my $host = $obj->host;
+        _print_ping_report( $obj );
+        }
+
     }
 
 sub _print_details { # -V
@@ -892,138 +1275,24 @@ HERE
     return HEY_IT_WORKED;
     }
 
-sub _check_install_dirs {
-    my $makepl_arg   = $CPAN::Config->{makepl_arg};
-    my $mbuildpl_arg = $CPAN::Config->{mbuildpl_arg};
-
-    my @custom_dirs;
-    # PERL_MM_OPT
-    push @custom_dirs,
-        $makepl_arg   =~ m/INSTALL_BASE\s*=\s*(\S+)/g,
-        $mbuildpl_arg =~ m/--install_base\s*=\s*(\S+)/g;
-
-    if( @custom_dirs ) {
-        foreach my $dir ( @custom_dirs ) {
-            _print_inc_dir_report( $dir );
-            }
-        }
-
-    # XXX: also need to check makepl_args, etc
-
-    my @checks = (
-        [ 'core',         [ grep $_, @Config{qw(installprivlib installarchlib)}      ] ],
-        [ 'vendor',       [ grep $_, @Config{qw(installvendorlib installvendorarch)} ] ],
-        [ 'site',         [ grep $_, @Config{qw(installsitelib installsitearch)}     ] ],
-        [ 'PERL5LIB',     _split_paths( $ENV{PERL5LIB} ) ],
-        [ 'PERLLIB',      _split_paths( $ENV{PERLLIB} )  ],
-        );
-
-    $logger->info( '-' x 50 . "\nChecking install dirs..." );
-    foreach my $tuple ( @checks ) {
-        my( $label ) = $tuple->[0];
-
-        $logger->info( "Checking $label" );
-        $logger->info( "\tno directories for $label" ) unless @{ $tuple->[1] };
-        foreach my $dir ( @{ $tuple->[1] } ) {
-            _print_inc_dir_report( $dir );
-            }
-        }
+sub _print_help {
+    $logger->info( "Use perldoc to read the documentation" );
+    my $HAVE_PERLDOC = eval { require Pod::Perldoc; 1; };
+    if ($HAVE_PERLDOC) {
+        system qq{"$^X" -e "require Pod::Perldoc; Pod::Perldoc->run()" $0};
+        exit;
+    	}
+    else {
+        warn "Please install Pod::Perldoc, maybe try 'cpan -i Pod::Perldoc'\n";
+        return HEY_IT_WORKED;
+		}
     }
 
-sub _split_paths {
-    [ map { _expand_filename( $_ ) } split /$Config{path_sep}/, $_[0] || '' ];
-    }
+sub _print_version { # -v
+    $logger->info(
+        "$0 script version $VERSION, CPAN.pm version " . CPAN->VERSION );
 
-
-=pod
-
-Stolen from File::Path::Expand
-
-=cut
-
-sub _expand_filename {
-    my( $path ) = @_;
-    no warnings 'uninitialized';
-    $logger->debug( "Expanding path $path\n" );
-    $path =~ s{\A~([^/]+)?}{
-        _home_of( $1 || $> ) || "~$1"
-        }e;
-    return $path;
-    }
-
-sub _home_of {
-    my( $user ) = @_;
-    my $ent = getpw($user) or return;
-    return $ent->dir;
-    }
-
-sub _get_default_inc {
-    require Config;
-
-    [ @Config::Config{ _vars() }, '.' ];
-    }
-
-sub _vars {
-    qw(
-    installarchlib
-    installprivlib
-    installsitearch
-    installsitelib
-    );
-    }
-
-sub _ping_mirrors {
-    my $urls   = $CPAN::Config->{urllist};
-    require URI;
-
-    foreach my $url ( @$urls ) {
-        my( $obj ) = URI->new( $url );
-        next unless _is_pingable_scheme( $obj );
-        my $host = $obj->host;
-        _print_ping_report( $obj );
-        }
-
-    }
-
-sub _is_pingable_scheme {
-    my( $uri ) = @_;
-
-    $uri->scheme eq 'file'
-    }
-
-sub _mirror_file {
-    my $file = do {
-        my $file = 'MIRRORED.BY';
-        my $local_path = File::Spec->catfile(
-            $CPAN::Config->{keep_source_where}, $file );
-
-        if( -e $local_path ) { $local_path }
-        else {
-            require CPAN::FTP;
-            CPAN::FTP->localize( $file, $local_path, 3, 1 );
-            $local_path;
-            }
-        };
-    }
-
-sub _find_good_mirrors {
-    require CPAN::Mirrors;
-
-    my $mirrors = CPAN::Mirrors->new( _mirror_file() );
-
-    my @mirrors = $mirrors->best_mirrors(
-        how_many   => 5,
-        verbose    => 1,
-        );
-
-    foreach my $mirror ( @mirrors ) {
-        next unless eval { $mirror->can( 'http' ) };
-        _print_ping_report( $mirror->http );
-        }
-
-    $CPAN::Config->{urllist} = [
-        map { $_->http } @mirrors
-        ];
+    return HEY_IT_WORKED;
     }
 
 sub _print_inc_dir_report {
@@ -1045,65 +1314,63 @@ sub _print_ping_report {
         );
     }
 
-sub _get_ping_report {
-    require URI;
-    my( $mirror ) = @_;
-    my( $url ) = ref $mirror ? $mirror : URI->new( $mirror ); #XXX
-    require Net::Ping;
+sub _process_options {
+    my %options;
 
-    my $ping = Net::Ping->new( 'tcp', 1 );
+    unshift @ARGV, grep $_, split /\s+/, $ENV{CPAN_OPTS} || '';
 
-    if( $url->scheme eq 'file' ) {
-        return -e $url->file;
+    # if no arguments, just drop into the shell
+    if( 0 == @ARGV ) { CPAN::shell(); exit 0 }
+    elsif (Getopt::Std::getopts( join( '', @option_order ), \%options )) {
+         \%options;
         }
-
-    my( $port ) = $url->port;
-
-    return unless $port;
-
-    if ( $ping->can('port_number') ) {
-        $ping->port_number($port);
-        }
-    else {
-        $ping->{'port_num'} = $port;
-        }
-
-    $ping->hires(1) if $ping->can( 'hires' );
-    my( $alive, $rtt ) = eval{ $ping->ping( $url->host ) };
-    $alive ? $rtt : undef;
+    else { exit 1 }
     }
 
-sub _load_local_lib { # -I
-    $logger->debug( "Loading local::lib" );
+sub _process_setup_options {
+    my( $class, $options ) = @_;
 
-    my $rc = _safe_load_module("local::lib");
-    unless( $rc ) {
-        $logger->logdie( "Could not load local::lib" );
+    if( $options->{j} ) {
+        $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
+        delete $options->{j};
+        }
+    elsif ( grep { exists $options->{$_} } keys %CPAN_METHODS ) { # these are options that need CPAN config
+        # this is what CPAN.pm would do otherwise
+        local $CPAN::Be_Silent = 1;
+        CPAN::HandleConfig->load(
+            # be_silent  => 1, deprecated
+            write_file => 0,
+            );
         }
 
-    local::lib->import;
+    $class->_turn_off_testing if $options->{T};
 
-    return HEY_IT_WORKED;
-    }
-
-sub _use_these_mirrors { # -M
-    $logger->debug( "Setting per session mirrors" );
-    unless( $_[0] ) {
-        $logger->logdie( "The -M switch requires a comma-separated list of mirrors" );
+    foreach my $o ( qw(F I w P M) ) {
+        next unless exists $options->{$o};
+        $Method_table{$o}[ $Method_table_index{code} ]->( $options->{$o} );
+        delete $options->{$o};
         }
 
-    $CPAN::Config->{urllist} = [ split /,/, $_[0] ];
+    if( $options->{o} ) {
+        my @pairs = map { [ split /=/, $_, 2 ] } split /,/, $options->{o};
+        foreach my $pair ( @pairs ) {
+            my( $setting, $value ) = @$pair;
+            $CPAN::Config->{$setting} = $value;
+            }
+        delete $options->{o};
+        }
 
-    $logger->debug( "Mirrors are @{$CPAN::Config->{urllist}}" );
-    }
+    my $option_count = grep { $options->{$_} } @option_order;
+    no warnings 'uninitialized';
 
-sub _create_autobundle {
-    $logger->info(
-        "Creating autobundle in $CPAN::Config->{cpan_home}/Bundle" );
+    # don't count options that imply installation
+    foreach my $opt ( qw(f T) ) { # don't count force or notest
+        $option_count -= $options->{$opt};
+        }
 
-    CPAN::Shell->autobundle;
-
-    return HEY_IT_WORKED;
+    # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    # if there are no options, set -i (this line fixes RT ticket 16915)
+    $options->{i}++ unless $option_count;
     }
 
 sub _recompile {
@@ -1114,12 +1381,77 @@ sub _recompile {
     return HEY_IT_WORKED;
     }
 
-sub _upgrade {
-    $logger->info( "Upgrading all modules" );
+sub run {
+    my( $class, @args ) = @_;
+    local @ARGV = @args;
+    my $return_value = HEY_IT_WORKED; # assume that things will work
 
-    CPAN::Shell->upgrade();
+    $logger = $class->_init_logger;
+    $logger->debug( "Using logger from @{[ref $logger]}" );
 
-    return HEY_IT_WORKED;
+    $class->_hook_into_CPANpm_report;
+    $logger->debug( "Hooked into output" );
+
+    $class->_stupid_interface_hack_for_non_rtfmers;
+    $logger->debug( "Patched cargo culting" );
+
+    my $options = $class->_process_options;
+    $logger->debug( "Options are @{[dumper($options)]}" );
+
+    $class->_process_setup_options( $options );
+
+    $class->_setup_environment( $options );
+
+    OPTION: foreach my $option ( @option_order ) {
+        next unless $options->{$option};
+
+        my( $sub, $takes_args, $description ) =
+            map { $Method_table{$option}[ $Method_table_index{$_} ] }
+            qw( code takes_args description );
+
+        unless( ref $sub eq ref sub {} ) {
+            $return_value = THE_PROGRAMMERS_AN_IDIOT;
+            last OPTION;
+            }
+
+        $logger->info( "[$option] $description -- ignoring other arguments" )
+            if( @ARGV && ! $takes_args );
+
+        $return_value = $sub->( \ @ARGV, $options );
+
+        last;
+        }
+
+    return $return_value;
+    }
+
+sub _safe_load_module {
+	# load a module without searching the default entry for the current
+	# directory
+    my($name) = @_;
+
+    local @INC = @INC;
+    pop @INC if $INC[-1] eq '.';
+
+    my $rc = eval "require $name; 1";
+    unless( $rc ) {
+    	$logger->error( "Could not load $name" );
+    	}
+
+    return $rc;
+	}
+
+sub _safe_load_modules {
+	_safe_load_module($_) for @_;
+	}
+
+sub _setup_environment {
+# should we override or set defaults? If this were a true interactive
+# session, we'd be in the CPAN shell.
+
+# https://github.com/Perl-Toolchain-Gang/toolchain-site/blob/master/lancaster-consensus.md
+    $ENV{NONINTERACTIVE_TESTING} = 1 unless defined $ENV{NONINTERACTIVE_TESTING};
+    $ENV{PERL_MM_USE_DEFAULT}    = 1 unless defined $ENV{PERL_MM_USE_DEFAULT};
     }
 
 sub _shell {
@@ -1129,243 +1461,6 @@ sub _shell {
 
     return HEY_IT_WORKED;
     }
-
-sub _load_config { # -j
-    my $argument = shift;
-
-    my $file = file_name_is_absolute( $argument ) ? $argument : rel2abs( $argument );
-    croak( "cpan config file [$file] for -j does not exist!\n" ) unless -e $file;
-
-    # should I clear out any existing config here?
-    $CPAN::Config = {};
-    delete $INC{'CPAN/Config.pm'};
-
-    my $rc = eval "require '$file'";
-
-    # CPAN::HandleConfig::require_myconfig_or_config looks for this
-    $INC{'CPAN/MyConfig.pm'} = 'fake out!';
-
-    # CPAN::HandleConfig::load looks for this
-    $CPAN::Config_loaded = 'fake out';
-
-    croak( "Could not load [$file]: $@\n") unless $rc;
-
-    return HEY_IT_WORKED;
-    }
-
-sub _dump_config { # -J
-    my $args = shift;
-    require Data::Dumper;
-
-    my $fh = $args->[0] || \*STDOUT;
-
-    local $Data::Dumper::Sortkeys = 1;
-    my $dd = Data::Dumper->new(
-        [$CPAN::Config],
-        ['$CPAN::Config']
-        );
-
-    print $fh $dd->Dump, "\n1;\n__END__\n";
-
-    return HEY_IT_WORKED;
-    }
-
-sub _lock_lobotomy { # -F
-    no warnings 'redefine';
-
-    *CPAN::_flock    = sub { 1 };
-    *CPAN::checklock = sub { 1 };
-
-    return HEY_IT_WORKED;
-    }
-
-sub _download {
-    my $args = shift;
-
-    my %results;
-    foreach my $arg ( @$args ) {
-        $logger->info( "Trying to download [$arg]" );
-
-        my $module = _expand_module( $arg );
-        unless( defined $module ) {
-            $results{$arg} = { path => $arg, success => 0 };
-            next;
-            }
-
-        $results{$arg} = _get_file( _make_path( $module ) );
-        $logger->info( "Downloaded [$arg] to [$results{$arg}{store_path}]" );
-        }
-
-    my $errors = grep { ! $results{$_}{success} } keys %results;
-
-    return \%results;
-    }
-
-sub _download_command {
-    my $results = _download(shift);
-    return ITS_NOT_MY_FAULT if grep { ! $results->{$_}{success} } keys %$results;
-    return HEY_IT_WORKED;
-    }
-
-sub _make_path {
-    my $arg = shift;
-
-    my $path = join "/", qw(authors id), do {
-           if( eval {$arg->isa('CPAN::Distribution')} ) { $arg->normalize }
-        elsif( eval {$arg->isa('CPAN::Module')}       ) { $arg->cpan_file }
-        else { undef }
-        };
-
-    $logger->debug( "CPAN path for [$arg] is [$path]" );
-
-    return $path;
-    }
-
-sub _get_file {
-    my $path = shift;
-
-    # handle this case here to make it easier a level above. The form
-    # of the returned data structure is mostly contained in this
-    # subroutine.
-    return { path => undef, success => 0 } unless defined $path;
-
-    my $loaded = _safe_load_module("HTTP::Tiny");
-    croak "You need HTTP::Tiny to use features that fetch files from CPAN\n"
-        unless $loaded;
-
-    my $file = substr $path, rindex( $path, '/' ) + 1;
-    my $store_path = catfile( cwd(), $file );
-    $logger->debug( "Store path is $store_path" );
-
-    my $response;
-    foreach my $site ( @{ $CPAN::Config->{urllist} } ) {
-        my $fetch_path = join "/", $site, $path;
-        $logger->debug( "Trying $fetch_path" );
-        $response = HTTP::Tiny->new->mirror( $fetch_path, $store_path, {} );
-        last if $response->{'success'};
-        $logger->warn( "Could not get [$fetch_path]: Status code " . $response->{'status'} );
-        }
-
-    return {
-    	path        => $path,
-    	store_path  => $store_path,
-    	status_code => $response->{'status'},
-    	success     => $response->{'success'}
-    	};
-    }
-
-sub _gitify {
-    my $args = shift;
-
-    my $loaded = _safe_load_module("Archive::Extract");
-    croak "You need Archive::Extract to use features that gitify distributions\n"
-        unless $loaded;
-
-    my $starting_dir = cwd();
-
-    foreach my $arg ( @$args ) {
-        $logger->info( "Checking $arg" );
-        my $store_paths = _download( [ $arg ] );
-        $logger->debug( "gitify Store path is $store_paths->{$arg}" );
-        my $dirname = dirname( $store_paths->{$arg} );
-
-        my $ae = Archive::Extract->new( archive => $store_paths->{$arg} );
-        $ae->extract( to => $dirname );
-
-        chdir $ae->extract_path;
-
-        my $git = $ENV{GIT_COMMAND} || '/usr/local/bin/git';
-        croak "Could not find $git"    unless -e $git;
-        croak "$git is not executable" unless -x $git;
-
-        # can we do this in Pure Perl?
-        system( $git, 'init'    );
-        system( $git, qw( add . ) );
-        system( $git, qw( commit -a -m ), 'initial import' );
-        }
-
-    chdir $starting_dir;
-
-    return HEY_IT_WORKED;
-    }
-
-sub _show_Changes {
-    my $args = shift;
-
-    foreach my $arg ( @$args ) {
-        $logger->info( "Checking Changes for $arg\n" );
-
-        my $module = _expand_module( $arg ) or next;
-        $logger->debug( dumper($module) );
-        my $out = _get_cpanpm_output();
-        next unless eval { $module->id };
-
-        print _get_changes_file( $module->id );
-        }
-
-    return HEY_IT_WORKED;
-    }
-
-sub _get_changes_file {
-	my $r = _safe_load_modules(qw(HTTP::Tiny));
-
-    my $module = shift;
-	$logger->debug("getting Changes for <$module>");
-
-	my $distribution = _get_distribution_name_from_module( $module );
-	$logger->debug("Distribution name is <$distribution>");
-	return unless defined $distribution;
-
-	my $url = "https://fastapi.metacpan.org/v1/changes/$distribution";
-    $logger->debug( "Fetching $url" );
-
-	my $response = HTTP::Tiny->new->get( $url );
-	unless( $response->{'success'} ) {
-		$logger->error("Could not fetch contents for $url");
-		return;
-		}
-
-	my $decoded = eval { decode_json($response->{'content'}) };
-	unless( $decoded ) {
-		$logger->error("Could not decode JSON for $url");
-		return;
-		}
-
-	return unless exists $decoded->{'content'};
-	my $changes = $decoded->{'content'};
-
-    return $changes;
-    }
-
-sub _get_distribution_name_from_module {
-	my $r = _safe_load_modules( qw(HTTP::Tiny) );
-
-	my( $module ) = @_;
-    my $url = "https://fastapi.metacpan.org/v1/module/" . $module;
-	my $response = HTTP::Tiny->new->get( $url );
-	unless( $response->{'success'} ) {
-		$logger->error( "Could not fetch $url" );
-		return;
-		}
-
-	unless( $response->{'content'} ) {
-		$logger->error("No distribution name for $module");
-		return;
-		}
-
-	return do {
-		my $decoded = eval { decode_json($response->{'content'}) };
-		if( ! defined $decoded ) {
-			$logger->error( "Could not decode JSON from $url" ); ();
-			}
-		elsif( ! exists $decoded->{'distribution'} ) {
-			$logger->error( "Missing content in JSON from $url" ); ();
-			}
-		else {
-			$decoded->{'distribution'};
-			}
-		};
-	}
 
 sub _show_Author {
     my $args = shift;
@@ -1384,6 +1479,38 @@ sub _show_Author {
 
         printf "%-25s %-8s %-25s %s\n",
             $arg, $module->userid, $author->email, $author->name;
+        }
+
+    return HEY_IT_WORKED;
+    }
+
+sub _show_author_mods {
+    my $args = shift;
+
+    my %hash = map { lc $_, 1 } @$args;
+
+    my $modules = _get_all_namespaces();
+
+    foreach my $module ( @$modules ) {
+        next unless exists $hash{ lc $module->userid };
+        print $module->id, "\n";
+        }
+
+    return HEY_IT_WORKED;
+    }
+
+sub _show_Changes {
+    my $args = shift;
+
+    foreach my $arg ( @$args ) {
+        $logger->info( "Checking Changes for $arg\n" );
+
+        my $module = _expand_module( $arg ) or next;
+        $logger->debug( dumper($module) );
+        my $out = _get_cpanpm_output();
+        next unless eval { $module->id };
+
+        print _get_changes_file( $module->id );
         }
 
     return HEY_IT_WORKED;
@@ -1414,14 +1541,6 @@ sub _show_Details {
     return HEY_IT_WORKED;
     }
 
-BEGIN {
-	my $modules;
-	sub _get_all_namespaces {
-		return $modules if $modules;
-		$modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
-		}
-	}
-
 sub _show_out_of_date {
     my $modules = _get_all_namespaces();
 
@@ -1441,188 +1560,56 @@ sub _show_out_of_date {
     return HEY_IT_WORKED;
     }
 
-sub _show_author_mods {
-    my $args = shift;
+sub _split_paths {
+    [ map { _expand_filename( $_ ) } split /$Config{path_sep}/, $_[0] || '' ];
+    }
 
-    my %hash = map { lc $_, 1 } @$args;
+sub _stupid_interface_hack_for_non_rtfmers {
+    no warnings 'uninitialized';
+    shift @ARGV if( $ARGV[0] eq 'install' and @ARGV > 1 )
+    }
 
-    my $modules = _get_all_namespaces();
+sub _turn_on_warnings {
+    carp "Warnings are implemented yet";
+    return HEY_IT_WORKED;
+    }
 
-    foreach my $module ( @$modules ) {
-        next unless exists $hash{ lc $module->userid };
-        print $module->id, "\n";
-        }
+sub _turn_off_testing {
+    $logger->debug( 'Trusting test report history' );
+    $CPAN::Config->{trust_test_report_history} = 1;
+    return HEY_IT_WORKED;
+    }
+
+sub _upgrade {
+    $logger->info( "Upgrading all modules" );
+
+    CPAN::Shell->upgrade();
 
     return HEY_IT_WORKED;
     }
 
-sub _list_all_mods { # -l
-    require File::Find;
-
-    my $args = shift;
-
-    my $fh = \*STDOUT;
-
-    INC: foreach my $inc ( @INC ) {
-        my( $wanted, $reporter ) = _generator();
-        File::Find::find( { wanted => $wanted }, $inc );
-
-        my $count = 0;
-        FILE: foreach my $file ( @{ $reporter->() } ) {
-            my $version = _parse_version_safely( $file );
-
-            my $module_name = _path_to_module( $inc, $file );
-            next FILE unless defined $module_name;
-
-            print $fh "$module_name\t$version\n";
-
-            #last if $count++ > 5;
-            }
+sub _use_these_mirrors { # -M
+    $logger->debug( "Setting per session mirrors" );
+    unless( $_[0] ) {
+        $logger->logdie( "The -M switch requires a comma-separated list of mirrors" );
         }
 
-    return HEY_IT_WORKED;
+    $CPAN::Config->{urllist} = [ split /,/, $_[0] ];
+
+    $logger->debug( "Mirrors are @{$CPAN::Config->{urllist}}" );
     }
 
-sub _generator {
-    my @files = ();
-
-    sub { push @files,
-        File::Spec->canonpath( $File::Find::name )
-        if m/\A\w+\.pm\z/ },
-    sub { \@files },
-    }
-
-sub _parse_version_safely { # stolen from PAUSE's mldistwatch, but refactored
-    my( $file ) = @_;
-
-    local $/ = "\n";
-    local $_; # don't mess with the $_ in the map calling this
-
-    return unless open FILE, "<$file";
-
-    my $in_pod = 0;
-    my $version;
-    while( <FILE> ) {
-        chomp;
-        $in_pod = /^=(?!cut)/ ? 1 : /^=cut/ ? 0 : $in_pod;
-        next if $in_pod || /^\s*#/;
-
-        next unless /([\$*])(([\w\:\']*)\bVERSION)\b.*\=/;
-        my( $sigil, $var ) = ( $1, $2 );
-
-        $version = _eval_version( $_, $sigil, $var );
-        last;
-        }
-    close FILE;
-
-    return 'undef' unless defined $version;
-
-    return $version;
-    }
-
-sub _eval_version {
-    my( $line, $sigil, $var ) = @_;
-
-        # split package line to hide from PAUSE
-    my $eval = qq{
-        package
-          ExtUtils::MakeMaker::_version;
-
-        local $sigil$var;
-        \$$var=undef; do {
-            $line
-            }; \$$var
-        };
-
-    my $version = do {
-        local $^W = 0;
-        no strict;
-        eval( $eval );
-        };
-
-    return $version;
-    }
-
-sub _path_to_module {
-    my( $inc, $path ) = @_;
-    return if length $path < length $inc;
-
-    my $module_path = substr( $path, length $inc );
-    $module_path =~ s/\.pm\z//;
-
-    # XXX: this is cheating and doesn't handle everything right
-    my @dirs = grep { ! /\W/ } File::Spec->splitdir( $module_path );
-    shift @dirs;
-
-    my $module_name = join "::", @dirs;
-
-    return $module_name;
-    }
-
-
-sub _expand_module {
-    my( $module ) = @_;
-
-    my $expanded = CPAN::Shell->expandany( $module );
-    return $expanded if $expanded;
-    $expanded = CPAN::Shell->expand( "Module", $module );
-    unless( defined $expanded ) {
-        $logger->error( "Could not expand [$module]. Check the module name." );
-        my $threshold = (
-            grep { int }
-            sort { length $a <=> length $b }
-                length($module)/4, 4
-            )[0];
-
-        my $guesses = _guess_at_module_name( $module, $threshold );
-        if( defined $guesses and @$guesses ) {
-            $logger->info( "Perhaps you meant one of these:" );
-            foreach my $guess ( @$guesses ) {
-                $logger->info( "\t$guess" );
-                }
-            }
-        return;
-        }
-
-    return $expanded;
-    }
-
-my $guessers = [
-    [ qw( Text::Levenshtein::XS distance 7 1 ) ],
-    [ qw( Text::Levenshtein::Damerau::XS     xs_edistance 7 1 ) ],
-
-    [ qw( Text::Levenshtein     distance 7 1 ) ],
-    [ qw( Text::Levenshtein::Damerau::PP     pp_edistance 7 1 ) ],
-
-    ];
-
-sub _disable_guessers {
-    $_->[-1] = 0 for @$guessers;
+sub _vars {
+    qw(
+    installarchlib
+    installprivlib
+    installsitearch
+    installsitelib
+    );
     }
 
 # for -x
-sub _guess_namespace {
-    my $args = shift;
 
-    foreach my $arg ( @$args ) {
-        $logger->debug( "Checking $arg" );
-        my $guesses = _guess_at_module_name( $arg );
-
-        foreach my $guess ( @$guesses ) {
-            print $guess, "\n";
-            }
-        }
-
-    return HEY_IT_WORKED;
-    }
-
-sub _list_all_namespaces {
-    my $modules = _get_all_namespaces();
-
-    foreach my $module ( @$modules ) {
-        print $module, "\n";
-        }
-    }
 
 BEGIN {
 	my $distance;
@@ -1633,7 +1620,7 @@ BEGIN {
 		my( $target, $threshold ) = @_;
 
 		unless( defined $distance ) {
-			foreach my $try ( @$guessers ) {
+			foreach my $try ( @{ _guessers() } ) {
 				$can_guess = eval "require $try->[0]; 1" or next;
 
 				$try->[-1] or next; # disabled
@@ -1646,7 +1633,7 @@ BEGIN {
 
 		unless( $distance ) {
 			unless( $shown_help ) {
-				my $modules = join ", ", map { $_->[0] } @$guessers;
+				my $modules = join ", ", map { $_->[0] } @{ _guessers() };
 				substr $modules, rindex( $modules, ',' ), 1, ', and';
 
 				# Should this be colorized?
