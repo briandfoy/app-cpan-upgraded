@@ -458,7 +458,6 @@ sub _process_setup_options {
         foreach my $pair ( @pairs ) {
             my( $setting, $value ) = @$pair;
             $CPAN::Config->{$setting} = $value;
-        #   $logger->debug( "Setting [$setting] to [$value]" );
             }
         delete $options->{o};
         }
