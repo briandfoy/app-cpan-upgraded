@@ -307,6 +307,9 @@ use autouse 'JSON::PP'              => qw(decode_json);
 use constant TRUE  => 1;
 use constant FALSE => 0;
 
+use constant NO_ARGS   => 0;
+use constant ARGS      => 1;
+use constant GOOD_EXIT => 0;
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # The return values
@@ -341,14 +344,6 @@ $Default = 'default';
 @CPAN_OPTIONS = grep { $_ ne $Default } sort keys %CPAN_METHODS;
 
 @option_order = ( @META_OPTIONS, @CPAN_OPTIONS );
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# map switches to the subroutines in this script, along with other information.
-# use this stuff instead of hard-coded indices and values
-sub NO_ARGS   () { 0 }
-sub ARGS      () { 1 }
-sub GOOD_EXIT () { 0 }
-
 
 %Method_table = (
 # key => [ sub ref, takes args?, exit value, description ]
