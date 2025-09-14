@@ -498,7 +498,7 @@ BEGIN {
 		Local::Logger::Null;  # hide from PAUSE
 	sub new { bless \my $x, $_[0] }
 	sub AUTOLOAD { $_[0] }
-}
+	}
 
 my $logger = Local::Logger::Null->new;
 
@@ -737,7 +737,6 @@ sub _hook_into_CPANpm_report {
             $CPAN::Config->{colorize_warn}||'bold red on_white'
             );
         };
-
     }
 
 sub _clear_cpanpm_output { $scalar = '' }
@@ -791,19 +790,19 @@ sub _get_cpanpm_last_line {
 }
 
 BEGIN {
-my $epic_fail_words = join '|',
-    qw( Error stop(?:ping)? problems force not unsupported
-        fail(?:ed)? Cannot\s+install );
+	my $epic_fail_words = join '|',
+		qw( Error stop(?:ping)? problems force not unsupported
+			fail(?:ed)? Cannot\s+install );
 
-sub _cpanpm_output_indicates_failure {
-    my $last_line = _get_cpanpm_last_line();
+	sub _cpanpm_output_indicates_failure {
+		my $last_line = _get_cpanpm_last_line();
 
-    my $result = $last_line =~ /\b(?:$epic_fail_words)\b/i;
-    return A_MODULE_FAILED_TO_INSTALL if $last_line =~ /\b(?:Cannot\s+install)\b/i;
+		my $result = $last_line =~ /\b(?:$epic_fail_words)\b/i;
+		return A_MODULE_FAILED_TO_INSTALL if $last_line =~ /\b(?:Cannot\s+install)\b/i;
 
-    $result || ();
-    }
-}
+		$result || ();
+		}
+	}
 
 sub _cpanpm_output_indicates_success {
     my $last_line = _get_cpanpm_last_line();
@@ -888,7 +887,7 @@ HERE
         $logger->info( sprintf "%s (%0.2f ms)",
             $timing->hostname, $timing->rtt );
         }
-    }
+    } # mirrors
 
     return HEY_IT_WORKED;
     }
@@ -929,7 +928,6 @@ sub _check_install_dirs {
             _print_inc_dir_report( $dir );
             }
         }
-
     }
 
 sub _split_paths {
@@ -1417,12 +1415,12 @@ sub _show_Details {
     }
 
 BEGIN {
-my $modules;
-sub _get_all_namespaces {
-    return $modules if $modules;
-    $modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
-    }
-}
+	my $modules;
+	sub _get_all_namespaces {
+		return $modules if $modules;
+		$modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
+		}
+	}
 
 sub _show_out_of_date {
     my $modules = _get_all_namespaces();
@@ -1627,57 +1625,57 @@ sub _list_all_namespaces {
     }
 
 BEGIN {
-my $distance;
-my $_threshold;
-my $can_guess;
-my $shown_help = 0;
-sub _guess_at_module_name {
-    my( $target, $threshold ) = @_;
+	my $distance;
+	my $_threshold;
+	my $can_guess;
+	my $shown_help = 0;
+	sub _guess_at_module_name {
+		my( $target, $threshold ) = @_;
 
-    unless( defined $distance ) {
-        foreach my $try ( @$guessers ) {
-            $can_guess = eval "require $try->[0]; 1" or next;
+		unless( defined $distance ) {
+			foreach my $try ( @$guessers ) {
+				$can_guess = eval "require $try->[0]; 1" or next;
 
-            $try->[-1] or next; # disabled
-            no strict 'refs';
-            $distance = \&{ join "::", @$try[0,1] };
-            $threshold ||= $try->[2];
-            }
-        }
-    $_threshold ||= $threshold;
+				$try->[-1] or next; # disabled
+				no strict 'refs';
+				$distance = \&{ join "::", @$try[0,1] };
+				$threshold ||= $try->[2];
+				}
+			}
+		$_threshold ||= $threshold;
 
-    unless( $distance ) {
-        unless( $shown_help ) {
-            my $modules = join ", ", map { $_->[0] } @$guessers;
-            substr $modules, rindex( $modules, ',' ), 1, ', and';
+		unless( $distance ) {
+			unless( $shown_help ) {
+				my $modules = join ", ", map { $_->[0] } @$guessers;
+				substr $modules, rindex( $modules, ',' ), 1, ', and';
 
-            # Should this be colorized?
-            if( $can_guess ) {
-                $logger->info( "I can suggest names if you provide the -x option on invocation." );
-                }
-            else {
-                $logger->info( "I can suggest names if you install one of $modules" );
-                $logger->info( "and you provide the -x option on invocation." );
-                }
-            $shown_help++;
-            }
-        return;
-        }
+				# Should this be colorized?
+				if( $can_guess ) {
+					$logger->info( "I can suggest names if you provide the -x option on invocation." );
+					}
+				else {
+					$logger->info( "I can suggest names if you install one of $modules" );
+					$logger->info( "and you provide the -x option on invocation." );
+					}
+				$shown_help++;
+				}
+			return;
+			}
 
-    my $modules = _get_all_namespaces();
-    $logger->info( "Checking " . @$modules . " namespaces for close match suggestions" );
+		my $modules = _get_all_namespaces();
+		$logger->info( "Checking " . @$modules . " namespaces for close match suggestions" );
 
-    my %guesses;
-    foreach my $guess ( @$modules ) {
-        my $distance = $distance->( $target, $guess );
-        next if $distance > $_threshold;
-        $guesses{$guess} = $distance;
-        }
+		my %guesses;
+		foreach my $guess ( @$modules ) {
+			my $distance = $distance->( $target, $guess );
+			next if $distance > $_threshold;
+			$guesses{$guess} = $distance;
+			}
 
-    my @guesses = sort { $guesses{$a} <=> $guesses{$b} } keys %guesses;
-    return [ grep { defined } @guesses[0..9] ];
-    }
-}
+		my @guesses = sort { $guesses{$a} <=> $guesses{$b} } keys %guesses;
+		return [ grep { defined } @guesses[0..9] ];
+		}
+	}
 
 1;
 
