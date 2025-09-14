@@ -323,8 +323,15 @@ use constant A_MODULE_FAILED_TO_INSTALL =>   8;
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # set up the order of options that we layer over CPAN::Shell
 BEGIN { # most of this should be in methods
-use vars qw( @META_OPTIONS $Default %CPAN_METHODS @CPAN_OPTIONS  @option_order
-    %Method_table %Method_table_index );
+use vars qw(
+	%CPAN_METHODS
+	@CPAN_OPTIONS
+	$Default
+	@META_OPTIONS
+    %Method_table
+    %Method_table_index
+	@option_order
+    );
 
 @META_OPTIONS = qw( h v V I g G M: C A D O l L a r p P j: J w x X );
 
