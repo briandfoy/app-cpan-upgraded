@@ -1,4 +1,4 @@
-use Test::More tests => 4;
+use Test::More;
 
 BEGIN { require "./t/97-lib_cpan1/CPAN.pm" }
 
@@ -9,3 +9,4 @@ is( exit(), 23, "Mock exit does not exit" );
 
 pass( "Got past the exit" );
 
+done_testing();

@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 60;
+use Test::More;
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 my $CPAN = 'CPAN::Shell';
@@ -127,6 +127,8 @@ my $last_line = $class->_get_cpanpm_last_line();
 like( $last_line, qr/NOT OK/, 'Last line is NOT OK line' );
 
 }
+
+done_testing();
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 sub my_clear_and_get {

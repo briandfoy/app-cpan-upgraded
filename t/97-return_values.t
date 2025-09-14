@@ -4,7 +4,7 @@ use warnings;
 
 $|++;
 
-use Test::More tests => 10;
+use Test::More;
 
 use File::Spec::Functions qw(catfile devnull);
 my $devnull = devnull();
@@ -54,3 +54,5 @@ foreach my $trial ( @trials ) {
 
 	is( !!$exit_value||0, $expected_exit_value, "$command @config @$options" ) or mycat $out;
 	}
+
+done_testing();

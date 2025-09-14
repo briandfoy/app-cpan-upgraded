@@ -15,7 +15,6 @@ my $HAVE_PERLDOC_TOMAN = eval { require Pod::Perldoc::ToMan; 1; };
 unless ($HAVE_PERLDOC_TOMAN) {
     plan skip_all => "Test requires Pod::Perldoc::ToMan to run";
 }
-plan tests => 32;
 
 my $file = File::Spec->catfile('.', 'blib', 'script', 'cpan');
 
@@ -34,3 +33,5 @@ ok $logger, "Found logger '$logger'";
 for my $switch (qw(a A c C D f F g G h i I j J l m M n O P r s t T u v V w x X)) {
     like( $output, qr/^[ ]+-\Q$switch\E/m, "advertizing $switch" );
 }
+
+done_testing();

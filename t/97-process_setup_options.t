@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 
 use Test::More;
-END { done_testing() }
 
 my $class  = 'App::Cpan::Upgraded';
 my $method = '_process_options';
@@ -33,4 +32,4 @@ subtest dash_g_in_argv => sub {
 	ok( $options->{g}, 'options include -T from CPAN_OPTS' );
 	};
 
-}
+done_testing();

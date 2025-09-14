@@ -1,4 +1,4 @@
-use Test::More qw(no_plan);
+use Test::More;
 
 my $class = 'App::Cpan::Upgraded';
 my $method = '_stupid_interface_hack_for_non_rtfmers';
@@ -23,3 +23,5 @@ foreach my $pair ( @pairs ) {
 
 	is_deeply( \@ARGV, $pair->[2], $pair->[0] );
 	}
+
+done_testing();

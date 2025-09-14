@@ -1,4 +1,4 @@
-use Test::More tests => 4;
+use Test::More;
 
 BEGIN {  *CORE::GLOBAL::exit = sub { 23 } };
 
@@ -23,3 +23,5 @@ local @ARGV = ();
 is( $class->$method(), 23, "No arguments calls shell branch" );
 pass( "Got past the exit" );
 }
+
+done_testing();

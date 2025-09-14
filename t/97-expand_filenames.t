@@ -1,5 +1,5 @@
 package App::Cpan::Upgraded;
-use Test::More qw(no_plan);
+use Test::More;
 
 BEGIN {
 	local $^W = 0;
@@ -58,3 +58,5 @@ is( $result, "/Users/foo", 'For tilde with name, output has that name' );
 my $result = _expand_filename( '~foo/bar' );
 is( $result, "/Users/foo/bar", 'For tilde with name and dir, output has name and dir' );
 }
+
+done_testing();
