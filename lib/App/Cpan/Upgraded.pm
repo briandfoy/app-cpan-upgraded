@@ -1670,13 +1670,13 @@ sub _vars {
 =back
 
 =head1 EXIT VALUES
-
 The script exits with zero if it thinks that everything worked, or a
 positive number if it thinks that something failed. Note, however, that
 in some cases it has to divine a failure by the output of things it does
 not control. For now, the exit codes are vague:
 
     1   An unknown error
+
 
     2   The was an external problem
 
@@ -1740,9 +1740,4 @@ You may redistribute this under the same terms as Perl itself.
 
 =cut
 
-# Local Variables:
-# mode: cperl
-# indent-tabs-mode: t
-# cperl-indent-level: 8
-# cperl-continued-statement-offset: 8
-# End:
+
