@@ -493,7 +493,14 @@ failure. See the section on EXIT CODES for details on the values.
 
 =cut
 
-my $logger;
+BEGIN {
+	package
+		Local::Logger::Null;  # hide from PAUSE
+	sub new { bless \my $x, $_[0] }
+	sub AUTOLOAD { $_[0] }
+}
+
+my $logger = Local::Logger::Null->new;
 
 sub run {
     my( $class, @args ) = @_;
@@ -590,6 +597,7 @@ BEGIN {
 	sub DESTROY { 1 }
 } # Local::Logger
 
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -681,7 +689,7 @@ HERE
 # load a module without searching the default entry for the current
 # directory
 sub _safe_load_module {
-    my $name = shift;
+    my($name) = @_;
 
     local @INC = @INC;
     pop @INC if $INC[-1] eq '.';
