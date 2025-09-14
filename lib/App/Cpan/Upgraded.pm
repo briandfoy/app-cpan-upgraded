@@ -344,7 +344,6 @@ $Default = 'default';
 
 @option_order = ( @META_OPTIONS, @CPAN_OPTIONS );
 
-
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # map switches to the subroutines in this script, along with other information.
 # use this stuff instead of hard-coded indices and values
@@ -352,7 +351,6 @@ sub NO_ARGS   () { 0 }
 sub ARGS      () { 1 }
 sub GOOD_EXIT () { 0 }
 
-sub dumper { Data::Dumper->new([@_])->Indent(1)->Sortkeys(1)->Terse(1)->Useqq(1)->Dump }
 
 %Method_table = (
 # key => [ sub ref, takes args?, exit value, description ]
@@ -407,21 +405,6 @@ sub dumper { Data::Dumper->new([@_])->Indent(1)->Sortkeys(1)->Terse(1)->Useqq(1)
     );
 }
 
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# finally, do some argument processing
-
-
-
-=item run( ARGS )
-
-Just do it.
-
-The C<run> method returns 0 on success and a positive number on
-failure. See the section on EXIT CODES for details on the values.
-
-=cut
-
 BEGIN {
 	package
 		Local::Logger::Null;  # hide from PAUSE
@@ -430,7 +413,6 @@ BEGIN {
 	}
 
 my $logger = Local::Logger::Null->new;
-
 
 my $LEVEL;
 BEGIN {
@@ -483,108 +465,6 @@ BEGIN {
 	sub DESTROY { 1 }
 } # Local::Logger
 
-
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
- # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-
-
-BEGIN {
-my $scalar = '';
-
-sub _hook_into_CPANpm_report {
-    no warnings 'redefine';
-
-    *CPAN::Shell::myprint = sub {
-        my($self,$what) = @_;
-        $scalar .= $what if defined $what;
-        $self->print_ornamented($what,
-            $CPAN::Config->{colorize_print}||'bold blue on_white',
-            );
-        };
-
-    *CPAN::Shell::mywarn = sub {
-        my($self,$what) = @_;
-        $scalar .= $what if defined $what;
-        $self->print_ornamented($what,
-            $CPAN::Config->{colorize_warn}||'bold red on_white'
-            );
-        };
-    }
-
-sub _clear_cpanpm_output { $scalar = '' }
-
-sub _get_cpanpm_output   { $scalar }
-
-# These are lines I don't care about in CPAN.pm output. If I can
-# filter out the informational noise, I have a better chance to
-# catch the error signal
-my @skip_lines = (
-    qr/^\QWarning \(usually harmless\)/,
-    qr/\bwill not store persistent state\b/,
-    qr(//hint//),
-    qr/^\s+reports\s+/,
-    qr/^Try the command/,
-    qr/^\s+$/,
-    qr/^to find objects/,
-    qr/^\s*Database was generated on/,
-    qr/^Going to read/,
-    qr|^\s+i\s+/|,    # the i /Foo::Whatever/ line when it doesn't know
-    );
-
-sub _get_cpanpm_last_line {
-    my $fh;
-
-    if( $] < 5.008 ) {
-        $fh = IO::Scalar->new( \ $scalar );
-        }
-    else {
-        eval q{ open $fh, '<', \\ $scalar; };
-        }
-
-    my @lines = <$fh>;
-
-    # This is a bit ugly. Once we examine a line, we have to
-    # examine the line before it and go through all of the same
-    # regexes. I could do something fancy, but this works.
-    REGEXES: {
-    foreach my $regex ( @skip_lines ) {
-        if( $lines[-1] =~ m/$regex/ ) {
-            pop @lines;
-            redo REGEXES; # we have to go through all of them for every line!
-            }
-        }
-    }
-
-    $logger->debug( "Last interesting line of CPAN.pm output is:\n\t$lines[-1]" );
-
-    $lines[-1];
-    }
-}
-
-BEGIN {
-	my $epic_fail_words = join '|',
-		qw( Error stop(?:ping)? problems force not unsupported
-			fail(?:ed)? Cannot\s+install );
-
-	sub _cpanpm_output_indicates_failure {
-		my $last_line = _get_cpanpm_last_line();
-
-		my $result = $last_line =~ /\b(?:$epic_fail_words)\b/i;
-		return A_MODULE_FAILED_TO_INSTALL if $last_line =~ /\b(?:Cannot\s+install)\b/i;
-
-		$result || ();
-		}
-	}
-
-BEGIN {
-	my $modules;
-	sub _get_all_namespaces {
-		return $modules if $modules;
-		$modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
-		}
-	}
-
 sub _check_install_dirs {
     my $makepl_arg   = $CPAN::Config->{makepl_arg};
     my $mbuildpl_arg = $CPAN::Config->{mbuildpl_arg};
@@ -622,6 +502,21 @@ sub _check_install_dirs {
             }
         }
     }
+
+BEGIN {
+	my $epic_fail_words = join '|',
+		qw( Error stop(?:ping)? problems force not unsupported
+			fail(?:ed)? Cannot\s+install );
+
+	sub _cpanpm_output_indicates_failure {
+		my $last_line = _get_cpanpm_last_line();
+
+		my $result = $last_line =~ /\b(?:$epic_fail_words)\b/i;
+		return A_MODULE_FAILED_TO_INSTALL if $last_line =~ /\b(?:Cannot\s+install)\b/i;
+
+		$result || ();
+		}
+	} # _cpanpm_output_indicates_failure
 
 sub _cpanpm_output_indicates_success {
     my $last_line = _get_cpanpm_last_line();
@@ -757,6 +652,11 @@ sub _download_command {
     return HEY_IT_WORKED;
     }
 
+sub _dumper {
+	require Data::Dumper;
+	Data::Dumper->new([@_])->Indent(1)->Sortkeys(1)->Terse(1)->Useqq(1)->Dump
+	}
+
 sub _eval_version {
     my( $line, $sigil, $var ) = @_;
 
@@ -843,6 +743,79 @@ sub _home_of {
     return $ent->dir;
     }
 
+BEGIN {
+	my $scalar = '';
+
+	sub _hook_into_CPANpm_report {
+		no warnings 'redefine';
+
+		*CPAN::Shell::myprint = sub {
+			my($self,$what) = @_;
+			$scalar .= $what if defined $what;
+			$self->print_ornamented($what,
+				$CPAN::Config->{colorize_print}||'bold blue on_white',
+				);
+			};
+
+		*CPAN::Shell::mywarn = sub {
+			my($self,$what) = @_;
+			$scalar .= $what if defined $what;
+			$self->print_ornamented($what,
+				$CPAN::Config->{colorize_warn}||'bold red on_white'
+				);
+			};
+		}
+
+	sub _clear_cpanpm_output { $scalar = '' }
+
+	sub _get_cpanpm_output   { $scalar }
+
+	# These are lines I don't care about in CPAN.pm output. If I can
+	# filter out the informational noise, I have a better chance to
+	# catch the error signal
+	my @skip_lines = (
+		qr/^\QWarning \(usually harmless\)/,
+		qr/\bwill not store persistent state\b/,
+		qr(//hint//),
+		qr/^\s+reports\s+/,
+		qr/^Try the command/,
+		qr/^\s+$/,
+		qr/^to find objects/,
+		qr/^\s*Database was generated on/,
+		qr/^Going to read/,
+		qr|^\s+i\s+/|,    # the i /Foo::Whatever/ line when it doesn't know
+		);
+
+	sub _get_cpanpm_last_line {
+		my $fh;
+
+		if( $] < 5.008 ) {
+			$fh = IO::Scalar->new( \ $scalar );
+			}
+		else {
+			eval q{ open $fh, '<', \\ $scalar; };
+			}
+
+		my @lines = <$fh>;
+
+		# This is a bit ugly. Once we examine a line, we have to
+		# examine the line before it and go through all of the same
+		# regexes. I could do something fancy, but this works.
+		REGEXES: {
+		foreach my $regex ( @skip_lines ) {
+			if( $lines[-1] =~ m/$regex/ ) {
+				pop @lines;
+				redo REGEXES; # we have to go through all of them for every line!
+				}
+			}
+		}
+
+		$logger->debug( "Last interesting line of CPAN.pm output is:\n\t$lines[-1]" );
+
+		$lines[-1];
+		}
+	} # _hook_into_CPANpm_report, and friends
+
 sub _is_pingable_scheme {
     my( $uri ) = @_;
 
@@ -857,6 +830,14 @@ sub _generator {
         if m/\A\w+\.pm\z/ },
     sub { \@files },
     }
+
+BEGIN {
+	my $modules;
+	sub _get_all_namespaces {
+		return $modules if $modules;
+		$modules = [ map { $_->id } CPAN::Shell->expand( "Module", "/./" ) ];
+		}
+	} # _get_all_namespaces
 
 sub _get_changes_file {
 	my $r = _safe_load_modules(qw(HTTP::Tiny));
@@ -986,6 +967,59 @@ sub _get_ping_report {
     $alive ? $rtt : undef;
     }
 
+BEGIN {
+	my $distance;
+	my $_threshold;
+	my $can_guess;
+	my $shown_help = 0;
+	sub _guess_at_module_name {
+		my( $target, $threshold ) = @_;
+
+		unless( defined $distance ) {
+			foreach my $try ( @{ _guessers() } ) {
+				$can_guess = eval "require $try->[0]; 1" or next;
+
+				$try->[-1] or next; # disabled
+				no strict 'refs';
+				$distance = \&{ join "::", @$try[0,1] };
+				$threshold ||= $try->[2];
+				}
+			}
+		$_threshold ||= $threshold;
+
+		unless( $distance ) {
+			unless( $shown_help ) {
+				my $modules = join ", ", map { $_->[0] } @{ _guessers() };
+				substr $modules, rindex( $modules, ',' ), 1, ', and';
+
+				# Should this be colorized?
+				if( $can_guess ) {
+					$logger->info( "I can suggest names if you provide the -x option on invocation." );
+					}
+				else {
+					$logger->info( "I can suggest names if you install one of $modules" );
+					$logger->info( "and you provide the -x option on invocation." );
+					}
+				$shown_help++;
+				}
+			return;
+			}
+
+		my $modules = _get_all_namespaces();
+		$logger->info( "Checking " . @$modules . " namespaces for close match suggestions" );
+
+		my %guesses;
+		foreach my $guess ( @$modules ) {
+			my $distance = $distance->( $target, $guess );
+			next if $distance > $_threshold;
+			$guesses{$guess} = $distance;
+			}
+
+		my @guesses = sort { $guesses{$a} <=> $guesses{$b} } keys %guesses;
+		return [ grep { defined } @guesses[0..9] ];
+		}
+	} # _guess_at_module_name
+
 sub _guessers {
 	my $guessers = [
 		[ qw( Text::Levenshtein::XS distance 7 1 ) ],
@@ -1032,7 +1066,7 @@ sub _gitify {
     return HEY_IT_WORKED;
     }
 
-sub _guess_namespace {
+sub _guess_namespace { # for -x
     my $args = shift;
 
     foreach my $arg ( @$args ) {
@@ -1396,7 +1430,7 @@ sub run {
     $logger->debug( "Patched cargo culting" );
 
     my $options = $class->_process_options;
-    $logger->debug( "Options are @{[dumper($options)]}" );
+    $logger->debug( "Options are @{[_dumper($options)]}" );
 
     $class->_process_setup_options( $options );
 
@@ -1506,7 +1540,7 @@ sub _show_Changes {
         $logger->info( "Checking Changes for $arg\n" );
 
         my $module = _expand_module( $arg ) or next;
-        $logger->debug( dumper($module) );
+        $logger->debug( _dumper($module) );
         my $out = _get_cpanpm_output();
         next unless eval { $module->id };
 
@@ -1608,61 +1642,6 @@ sub _vars {
     );
     }
 
-# for -x
-
-
-BEGIN {
-	my $distance;
-	my $_threshold;
-	my $can_guess;
-	my $shown_help = 0;
-	sub _guess_at_module_name {
-		my( $target, $threshold ) = @_;
-
-		unless( defined $distance ) {
-			foreach my $try ( @{ _guessers() } ) {
-				$can_guess = eval "require $try->[0]; 1" or next;
-
-				$try->[-1] or next; # disabled
-				no strict 'refs';
-				$distance = \&{ join "::", @$try[0,1] };
-				$threshold ||= $try->[2];
-				}
-			}
-		$_threshold ||= $threshold;
-
-		unless( $distance ) {
-			unless( $shown_help ) {
-				my $modules = join ", ", map { $_->[0] } @{ _guessers() };
-				substr $modules, rindex( $modules, ',' ), 1, ', and';
-
-				# Should this be colorized?
-				if( $can_guess ) {
-					$logger->info( "I can suggest names if you provide the -x option on invocation." );
-					}
-				else {
-					$logger->info( "I can suggest names if you install one of $modules" );
-					$logger->info( "and you provide the -x option on invocation." );
-					}
-				$shown_help++;
-				}
-			return;
-			}
-
-		my $modules = _get_all_namespaces();
-		$logger->info( "Checking " . @$modules . " namespaces for close match suggestions" );
-
-		my %guesses;
-		foreach my $guess ( @$modules ) {
-			my $distance = $distance->( $target, $guess );
-			next if $distance > $_threshold;
-			$guesses{$guess} = $distance;
-			}
-
-		my @guesses = sort { $guesses{$a} <=> $guesses{$b} } keys %guesses;
-		return [ grep { defined } @guesses[0..9] ];
-		}
-	}
 
 1;
 
