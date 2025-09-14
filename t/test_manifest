@@ -1,3 +1,4 @@
+null-logger.t
 97-compile.t
 97-cpanpm_output_hook.t
 97-expand_filenames.t

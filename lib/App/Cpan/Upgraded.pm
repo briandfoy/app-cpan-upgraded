@@ -540,66 +540,55 @@ sub run {
     }
 
 my $LEVEL;
-{
-package
-  Local::Null::Logger; # hide from PAUSE
-
-my @LOGLEVELS = qw(TRACE DEBUG INFO WARN ERROR FATAL);
-$LEVEL        = uc($ENV{CPANSCRIPT_LOGLEVEL} || 'INFO');
-my %LL        = map { $LOGLEVELS[$_] => $_ } 0..$#LOGLEVELS;
-unless (defined $LL{$LEVEL}){
-    warn "Unsupported loglevel '$LEVEL', setting to INFO";
-    $LEVEL = 'INFO';
-}
-sub new { bless \ my $x, $_[0] }
-sub AUTOLOAD {
-    my $autoload = our $AUTOLOAD;
-    $autoload =~ s/.*://;
-    return if $LL{uc $autoload} < $LL{$LEVEL};
-    $CPAN::Frontend->mywarn(">($autoload): $_\n")
-        for split /[\r\n]+/, $_[1];
-}
-sub DESTROY { 1 }
-}
-
-# load a module without searching the default entry for the current
-# directory
-sub _safe_load_module {
-    my $name = shift;
-
-    local @INC = @INC;
-    pop @INC if $INC[-1] eq '.';
-
-    my $rc = eval "require $name; 1";
-    unless( $rc ) {
-    	$logger->error( "Could not load $name" );
-    	}
-
-    return $rc;
+BEGIN {
+	package
+	  Local::Logger; # hide from PAUSE
+	use Data::Dumper;
+	my @LOGLEVELS = qw(TRACE DEBUG INFO WARN ERROR FATAL);
+	$LEVEL        = uc($ENV{CPANSCRIPT_LOGLEVEL} || 'INFO');
+	my %LL        = map { $LOGLEVELS[$_] => $_ } 0..$#LOGLEVELS;
+	unless (defined $LL{$LEVEL}){
+		warn "Unsupported loglevel '$LEVEL', setting to INFO";
+		$LEVEL = 'INFO';
 	}
 
-sub _safe_load_modules {
-	_safe_load_module($_) for @_;
-	}
+	sub new {
+		my($level) = $_[1] // 'INFO';
+		my $h = {
+			level => $level,
+			};
+		bless $h, $_[0]
+		}
 
-sub _init_logger {
-    my $log4perl_loaded = _safe_load_module("Log::Log4perl");
+	sub can {
+		my( $self, @methods ) = @_;
 
-    unless( $log4perl_loaded ) {
-        print STDOUT "Loading internal logger. Log::Log4perl recommended for better logging\n";
-        $logger = Local::Null::Logger->new;
-        return $logger;
-        }
+		my @can = grep {
+			exists($LL{uc $_})
+				||
+			m/\A(?:new|can|AUTOLOAD|DESTROY)\z/;
+			} @methods;
 
-    Log::Log4perl::init( \ <<"HERE" );
-log4perl.rootLogger=$LEVEL, A1
-log4perl.appender.A1=Log::Log4perl::Appender::Screen
-log4perl.appender.A1.layout=PatternLayout
-log4perl.appender.A1.layout.ConversionPattern=%m%n
-HERE
+		return 1 if @can == @methods;
+		return 0;
+		}
 
-    $logger = Log::Log4perl->get_logger( 'App::Cpan' );
-    }
+	sub level {
+		$_[0]->{level} = $_[1] if $#_ == 1;
+		$_[0]->{level};
+		}
+
+	sub AUTOLOAD {
+		my($self) = @_;
+		my $autoload = our $AUTOLOAD;
+		$autoload =~ s/.*://;
+		return if $LL{uc $autoload} < $LL{$self->level};
+		$CPAN::Frontend->mywarn(">($autoload): $_\n")
+			for split /[\r\n]+/, $_[1];
+		}
+
+	sub DESTROY { 1 }
+} # Local::Logger
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
  # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -664,6 +653,50 @@ sub _default {
         };
 
     }
+
+sub _default_log_level { 'INFO' }
+
+sub _init_logger {
+	my($self) = @_;
+    my $log4perl_loaded = _safe_load_module("Log::Log4perl");
+
+	my $level = uc( $ENV{'CPANSCRIPT_LOGLEVEL'} // $self->_default_log_level );
+
+    unless( $log4perl_loaded ) {
+        $logger = Local::Logger->new($level);
+		$logger->info("Loading internal logger. Log::Log4perl recommended for better logging\n");
+        return $logger;
+        }
+
+    Log::Log4perl::init( \ <<"HERE" );
+log4perl.rootLogger=$level, A1
+log4perl.appender.A1=Log::Log4perl::Appender::Screen
+log4perl.appender.A1.layout=PatternLayout
+log4perl.appender.A1.layout.ConversionPattern=%m%n
+HERE
+
+    return Log::Log4perl->get_logger( 'App::Cpan' );
+    }
+
+# load a module without searching the default entry for the current
+# directory
+sub _safe_load_module {
+    my $name = shift;
+
+    local @INC = @INC;
+    pop @INC if $INC[-1] eq '.';
+
+    my $rc = eval "require $name; 1";
+    unless( $rc ) {
+    	$logger->error( "Could not load $name" );
+    	}
+
+    return $rc;
+	}
+
+sub _safe_load_modules {
+	_safe_load_module($_) for @_;
+	}
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
