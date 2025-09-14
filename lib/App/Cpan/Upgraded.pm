@@ -294,15 +294,13 @@ is C</usr/local/bin/git>.
 
 use CPAN 1.80 (); # needs no test
 use Config;
-use Data::Dumper;
-use Getopt::Std;
 
+# these are for the modules that might be used anywhere.
 use autouse 'Carp'                  => qw(carp croak cluck);
 use autouse 'Cwd'                   => qw(cwd);
 use autouse 'File::Basename'        => qw(dirname);
 use autouse 'File::Spec::Functions' => qw(catfile file_name_is_absolute rel2abs);
 use autouse 'JSON::PP'              => qw(decode_json);
-use autouse 'User::pwent'           => qw(getpw);
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Internal constants
@@ -738,8 +736,9 @@ sub _find_good_mirrors {
     }
 
 sub _home_of {
+	my $rc = require User::pwent;
     my( $user ) = @_;
-    my $ent = getpw($user) or return;
+    my $ent = User::pwent::getpw($user) or return;
     return $ent->dir;
     }
 
@@ -1349,6 +1348,7 @@ sub _print_ping_report {
     }
 
 sub _process_options {
+	my $rc = require Getopt::Std;
     my %options;
 
     unshift @ARGV, grep $_, split /\s+/, $ENV{CPAN_OPTS} || '';
