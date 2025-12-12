@@ -557,23 +557,6 @@ sub _disable_guessers {
     $_->[-1] = 0 for @{_guessers()};
     }
 
-sub _dump_config { # -J
-    my $args = shift;
-    require Data::Dumper;
-
-    my $fh = $args->[0] || \*STDOUT;
-
-    local $Data::Dumper::Sortkeys = 1;
-    my $dd = Data::Dumper->new(
-        [$CPAN::Config],
-        ['$CPAN::Config']
-        );
-
-    print $fh $dd->Dump, "\n1;\n__END__\n";
-
-    return HEY_IT_WORKED;
-    }
-
 sub _download {
     my $args = shift;
 
@@ -599,6 +582,23 @@ sub _download {
 sub _download_command {
     my $results = _download(shift);
     return ITS_NOT_MY_FAULT if grep { ! $results->{$_}{success} } keys %$results;
+    return HEY_IT_WORKED;
+    }
+
+sub _dump_config { # -J
+    my( $args ) = @_;
+    require Data::Dumper;
+
+    my $fh = \*STDOUT;
+
+    local $Data::Dumper::Sortkeys = 1;
+    my $dd = Data::Dumper->new(
+        [$CPAN::Config],
+        ['$CPAN::Config']
+        );
+
+    print {$fh} $dd->Dump, "\n1;\n__END__\n";
+
     return HEY_IT_WORKED;
     }
 
