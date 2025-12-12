@@ -1364,9 +1364,11 @@ sub _print_ping_report {
     }
 
 sub _process_options {
+	my( $self, @args ) = @_;
 	my $rc = require Getopt::Std;
     my %options;
 
+	local @ARGV = @args;
     unshift @ARGV, grep $_, split /\s+/, $ENV{CPAN_OPTS} || '';
 
     # if no arguments, just drop into the shell
@@ -1382,6 +1384,7 @@ sub _process_setup_options {
 
 	my %Method_table       = _method_table();
 	my %Method_table_index = _method_table_index();
+	my %CPAN_METHODS       = _cpan_methods();
 
     if( $options->{j} ) {
         $Method_table{j}[ $Method_table_index{code} ]->( $options->{j} );
@@ -1436,7 +1439,7 @@ sub _recompile {
 
 sub run {
     my( $class, @args ) = @_;
-    local @ARGV = @args;
+
     my $return_value = HEY_IT_WORKED; # assume that things will work
 
     $logger = $class->_init_logger;
@@ -1448,7 +1451,7 @@ sub run {
     $class->_stupid_interface_hack_for_non_rtfmers;
     $logger->debug( "Patched cargo culting" );
 
-    my $options = $class->_process_options;
+    my $options = $class->_process_options(@args);
     $logger->debug( "Options are @{[_dumper($options)]}" );
 
     $class->_process_setup_options( $options );
@@ -1471,9 +1474,12 @@ sub run {
             }
 
         $logger->info( "[$option] $description -- ignoring other arguments" )
-            if( @ARGV && ! $takes_args );
+            if( @args && ! $takes_args );
 
-        $return_value = $sub->( \ @ARGV, $options );
+		print STDERR "option is <$options>\n";
+		@args = () unless $takes_args;
+
+        $return_value = $sub->( \ @args, $options );
 
         last;
         }
