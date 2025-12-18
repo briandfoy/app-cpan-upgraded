@@ -610,7 +610,7 @@ sub _dumper {
 sub _eval_version {
     my( $line, $sigil, $var ) = @_;
 
-    # split package line to hide from PAUSE
+        # split package line to hide from PAUSE
     my $eval = qq{
         package
           ExtUtils::MakeMaker::_version;
