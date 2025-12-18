@@ -610,13 +610,13 @@ sub _dumper {
 sub _eval_version {
     my( $line, $sigil, $var ) = @_;
 
-        # split package line to hide from PAUSE
+    # split package line to hide from PAUSE
     my $eval = qq{
         package
           ExtUtils::MakeMaker::_version;
-
-        local $sigil$var;
-        \$$var=undef; do {
+          no warnings qw(uninitialized);
+          local $sigil$var;
+          \$$var=undef; do {
             $line
             }; \$$var
         };
@@ -1476,7 +1476,7 @@ sub run {
         $logger->info( "[$option] $description -- ignoring other arguments" )
             if( @args && ! $takes_args );
 
-		print STDERR "option is <$options>\n";
+		$logger->debug(  "option is <$option>\n" );
 		@args = () unless $takes_args;
 
         $return_value = $sub->( \ @args, $options );
