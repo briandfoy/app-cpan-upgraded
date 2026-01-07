@@ -17,3 +17,5 @@ nytprof
 
 cpan-home
 t/97-return_values.out
+
+.downstream.json
