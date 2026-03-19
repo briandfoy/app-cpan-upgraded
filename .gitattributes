@@ -1,1 +1,2 @@
 t/CPAN/**	linguist-vendored=true
+t/97-compile.t  linguist-language=Perl
