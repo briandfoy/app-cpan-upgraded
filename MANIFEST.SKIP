@@ -19,3 +19,6 @@ cpan-home
 t/97-return_values.out
 
 .downstream.json
+
+.downstream.json
+cpan_tester_reports
