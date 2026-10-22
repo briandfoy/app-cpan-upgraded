@@ -37,3 +37,4 @@ inc/
 cpan-home
 filter.pl
 t/97-return_values.out
+.claude/
