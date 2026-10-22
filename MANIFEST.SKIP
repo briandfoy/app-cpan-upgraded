@@ -22,3 +22,4 @@ t/97-return_values.out
 
 .downstream.json
 cpan_tester_reports
+.claude/
